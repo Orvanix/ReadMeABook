@@ -10,7 +10,9 @@ import { RMABLogger } from '@/lib/utils/logger';
 const logger = RMABLogger.create('API.BookDate.TestConnection');
 
 // Fetch available Claude models from the Anthropic API
-async function fetchClaudeModels(apiKey: string): Promise<{ id: string; name: string }[]> {
+async function fetchClaudeModels(
+  apiKey: string,
+): Promise<{ id: string; name: string }[]> {
   const allModels: { id: string; name: string }[] = [];
   let afterId: string | undefined;
 
@@ -28,7 +30,7 @@ async function fetchClaudeModels(apiKey: string): Promise<{ id: string; name: st
           'x-api-key': apiKey,
           'anthropic-version': '2023-06-01',
         },
-      }
+      },
     );
 
     if (!response.ok) {
@@ -53,9 +55,12 @@ async function fetchClaudeModels(apiKey: string): Promise<{ id: string; name: st
 }
 
 // Fetch available Gemini models from the Google API
-async function fetchGeminiModels(apiKey: string): Promise<{ id: string; name: string }[]> {
+async function fetchGeminiModels(
+  apiKey: string,
+): Promise<{ id: string; name: string }[]> {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
+    'https://generativelanguage.googleapis.com/v1beta/models',
+    { headers: { 'x-goog-api-key': apiKey } },
   );
 
   if (!response.ok) {
@@ -67,7 +72,11 @@ async function fetchGeminiModels(apiKey: string): Promise<{ id: string; name: st
   const data = await response.json();
 
   return (data.models || [])
-    .filter((m: any) => m.name?.startsWith('models/gemini-') && m.supportedGenerationMethods?.includes('generateContent'))
+    .filter(
+      (m: any) =>
+        m.name?.startsWith('models/gemini-') &&
+        m.supportedGenerationMethods?.includes('generateContent'),
+    )
     .map((m: any) => ({
       id: m.name.replace('models/', ''),
       name: m.displayName || m.name.replace('models/', ''),
@@ -98,14 +107,17 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
     if (!provider) {
       return NextResponse.json(
         { error: 'Provider is required' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!['openai', 'claude', 'custom', 'gemini'].includes(provider)) {
       return NextResponse.json(
-        { error: 'Invalid provider. Must be "openai", "claude", "custom", or "gemini"' },
-        { status: 400 }
+        {
+          error:
+            'Invalid provider. Must be "openai", "claude", "custom", or "gemini"',
+        },
+        { status: 400 },
       );
     }
 
@@ -114,15 +126,18 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
       if (!baseUrl && !useSavedKey) {
         return NextResponse.json(
           { error: 'Base URL is required for custom provider' },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
       const urlToValidate = useSavedKey ? null : baseUrl; // Will check saved URL later if useSavedKey
       if (urlToValidate && !isValidBaseUrl(urlToValidate)) {
         return NextResponse.json(
-          { error: 'Invalid base URL format. Must start with http:// or https://' },
-          { status: 400 }
+          {
+            error:
+              'Invalid base URL format. Must start with http:// or https://',
+          },
+          { status: 400 },
         );
       }
     }
@@ -132,14 +147,15 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
     let testBaseUrl = baseUrl;
     if (useSavedKey) {
       const { prisma } = await import('@/lib/db');
-      const { getEncryptionService } = await import('@/lib/services/encryption.service');
+      const { getEncryptionService } =
+        await import('@/lib/services/encryption.service');
 
       const config = await prisma.bookDateConfig.findFirst();
 
       if (!config || !config.apiKey) {
         return NextResponse.json(
           { error: 'No saved configuration found' },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -151,7 +167,7 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
         if (provider !== 'custom') {
           return NextResponse.json(
             { error: 'Failed to decrypt saved API key' },
-            { status: 500 }
+            { status: 500 },
           );
         }
         testApiKey = '';
@@ -162,7 +178,7 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
         if (!testBaseUrl) {
           return NextResponse.json(
             { error: 'No saved base URL found for custom provider' },
-            { status: 400 }
+            { status: 400 },
           );
         }
       }
@@ -172,7 +188,7 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
     if (!testApiKey && provider !== 'custom') {
       return NextResponse.json(
         { error: 'API key is required' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -182,7 +198,7 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
       // OpenAI: Fetch models from API
       const response = await fetch('https://api.openai.com/v1/models', {
         headers: {
-          'Authorization': `Bearer ${testApiKey}`,
+          Authorization: `Bearer ${testApiKey}`,
         },
       });
 
@@ -191,7 +207,7 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
         logger.error('OpenAI API error', { error: errorText });
         return NextResponse.json(
           { error: 'Invalid OpenAI API key or connection failed' },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -205,7 +221,6 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
           name: m.id,
         }))
         .sort((a: any, b: any) => a.name.localeCompare(b.name));
-
     } else if (provider === 'claude') {
       // Claude: Fetch models dynamically from the Anthropic Models API
       try {
@@ -213,7 +228,7 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
       } catch {
         return NextResponse.json(
           { error: 'Invalid Claude API key or connection failed' },
-          { status: 400 }
+          { status: 400 },
         );
       }
     } else if (provider === 'gemini') {
@@ -223,7 +238,7 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
       } catch {
         return NextResponse.json(
           { error: 'Invalid Gemini API key or connection failed' },
-          { status: 400 }
+          { status: 400 },
         );
       }
     } else if (provider === 'custom') {
@@ -244,11 +259,15 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
 
         if (!response.ok) {
           const errorText = await response.text();
-          logger.error('Custom provider connection error', { error: errorText });
+          logger.error('Custom provider connection error', {
+            error: errorText,
+          });
           // Return 400 (not the external service's status) to prevent triggering logout on 401
           return NextResponse.json(
-            { error: `Failed to connect to custom provider: ${response.status} ${errorText}` },
-            { status: 400 }
+            {
+              error: `Failed to connect to custom provider: ${response.status} ${errorText}`,
+            },
+            { status: 400 },
           );
         }
 
@@ -273,7 +292,8 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
           return NextResponse.json({
             success: true,
             models: [],
-            message: 'Connected successfully but could not parse models list. You may need to enter model name manually.',
+            message:
+              'Connected successfully but could not parse models list. You may need to enter model name manually.',
           });
         }
 
@@ -281,8 +301,10 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
       } catch (error: any) {
         logger.error('Custom provider network error', { error: error.message });
         return NextResponse.json(
-          { error: `Network error connecting to custom provider: ${error.message}` },
-          { status: 500 }
+          {
+            error: `Network error connecting to custom provider: ${error.message}`,
+          },
+          { status: 500 },
         );
       }
     }
@@ -292,12 +314,13 @@ async function authenticatedHandler(req: AuthenticatedRequest) {
       models,
       provider,
     });
-
   } catch (error: any) {
-    logger.error('Test connection error', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Test connection error', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: error.message || 'Connection test failed' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -312,7 +335,7 @@ async function unauthenticatedHandler(req: NextRequest) {
     if (useSavedKey) {
       return NextResponse.json(
         { error: 'Authentication required to use saved API key' },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -320,14 +343,17 @@ async function unauthenticatedHandler(req: NextRequest) {
     if (!provider) {
       return NextResponse.json(
         { error: 'Provider is required' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!['openai', 'claude', 'custom', 'gemini'].includes(provider)) {
       return NextResponse.json(
-        { error: 'Invalid provider. Must be "openai", "claude", "custom", or "gemini"' },
-        { status: 400 }
+        {
+          error:
+            'Invalid provider. Must be "openai", "claude", "custom", or "gemini"',
+        },
+        { status: 400 },
       );
     }
 
@@ -336,14 +362,17 @@ async function unauthenticatedHandler(req: NextRequest) {
       if (!baseUrl) {
         return NextResponse.json(
           { error: 'Base URL is required for custom provider' },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
       if (!isValidBaseUrl(baseUrl)) {
         return NextResponse.json(
-          { error: 'Invalid base URL format. Must start with http:// or https://' },
-          { status: 400 }
+          {
+            error:
+              'Invalid base URL format. Must start with http:// or https://',
+          },
+          { status: 400 },
         );
       }
     }
@@ -352,7 +381,7 @@ async function unauthenticatedHandler(req: NextRequest) {
     if (!apiKey && provider !== 'custom') {
       return NextResponse.json(
         { error: 'API key is required' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -362,7 +391,7 @@ async function unauthenticatedHandler(req: NextRequest) {
       // OpenAI: Fetch models from API
       const response = await fetch('https://api.openai.com/v1/models', {
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          Authorization: `Bearer ${apiKey}`,
         },
       });
 
@@ -371,7 +400,7 @@ async function unauthenticatedHandler(req: NextRequest) {
         logger.error('OpenAI API error', { error: errorText });
         return NextResponse.json(
           { error: 'Invalid OpenAI API key or connection failed' },
-          { status: 400 }
+          { status: 400 },
         );
       }
 
@@ -385,7 +414,6 @@ async function unauthenticatedHandler(req: NextRequest) {
           name: m.id,
         }))
         .sort((a: any, b: any) => a.name.localeCompare(b.name));
-
     } else if (provider === 'claude') {
       // Claude: Fetch models dynamically from the Anthropic Models API
       try {
@@ -393,7 +421,7 @@ async function unauthenticatedHandler(req: NextRequest) {
       } catch {
         return NextResponse.json(
           { error: 'Invalid Claude API key or connection failed' },
-          { status: 400 }
+          { status: 400 },
         );
       }
     } else if (provider === 'gemini') {
@@ -403,7 +431,7 @@ async function unauthenticatedHandler(req: NextRequest) {
       } catch {
         return NextResponse.json(
           { error: 'Invalid Gemini API key or connection failed' },
-          { status: 400 }
+          { status: 400 },
         );
       }
     } else if (provider === 'custom') {
@@ -424,11 +452,15 @@ async function unauthenticatedHandler(req: NextRequest) {
 
         if (!response.ok) {
           const errorText = await response.text();
-          logger.error('Custom provider connection error', { error: errorText });
+          logger.error('Custom provider connection error', {
+            error: errorText,
+          });
           // Return 400 (not the external service's status) to prevent triggering logout on 401
           return NextResponse.json(
-            { error: `Failed to connect to custom provider: ${response.status} ${errorText}` },
-            { status: 400 }
+            {
+              error: `Failed to connect to custom provider: ${response.status} ${errorText}`,
+            },
+            { status: 400 },
           );
         }
 
@@ -453,7 +485,8 @@ async function unauthenticatedHandler(req: NextRequest) {
           return NextResponse.json({
             success: true,
             models: [],
-            message: 'Connected successfully but could not parse models list. You may need to enter model name manually.',
+            message:
+              'Connected successfully but could not parse models list. You may need to enter model name manually.',
           });
         }
 
@@ -461,8 +494,10 @@ async function unauthenticatedHandler(req: NextRequest) {
       } catch (error: any) {
         logger.error('Custom provider network error', { error: error.message });
         return NextResponse.json(
-          { error: `Network error connecting to custom provider: ${error.message}` },
-          { status: 500 }
+          {
+            error: `Network error connecting to custom provider: ${error.message}`,
+          },
+          { status: 500 },
         );
       }
     }
@@ -472,12 +507,13 @@ async function unauthenticatedHandler(req: NextRequest) {
       models,
       provider,
     });
-
   } catch (error: any) {
-    logger.error('Test connection error', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Test connection error', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       { error: error.message || 'Connection test failed' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
