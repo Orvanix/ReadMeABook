@@ -285,7 +285,7 @@ function ShelfCard({
       />
     ) : (
       <img
-        src="/hardcover.svg"
+        src="/hardcover-icon.svg"
         alt="Hardcover"
         className="w-5 h-5 ml-2 object-contain"
       />

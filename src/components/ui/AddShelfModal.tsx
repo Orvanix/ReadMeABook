@@ -178,7 +178,7 @@ export function AddShelfModal({ isOpen, onClose }: AddShelfModalProps) {
             <>
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-500/10 dark:to-blue-500/10 flex items-center justify-center ring-1 ring-indigo-200/50 dark:ring-indigo-500/10 flex-shrink-0">
                 <img
-                  src="/hardcover.svg"
+                  src="/hardcover-icon.svg"
                   alt="Hardcover"
                   className="w-6 h-6 object-contain"
                 />
