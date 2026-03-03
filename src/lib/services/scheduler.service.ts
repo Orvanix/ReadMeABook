@@ -175,10 +175,7 @@ export class SchedulerService {
    */
   private async cleanupDeprecatedJobs(): Promise<void> {
     try {
-      const deprecatedTypes = [
-        'sync_goodreads_shelves',
-        'sync_hardcover_shelves',
-      ];
+      const deprecatedTypes = ['sync_goodreads_shelves'];
 
       const obsoleteJobs = await prisma.scheduledJob.findMany({
         where: { type: { in: deprecatedTypes } },
