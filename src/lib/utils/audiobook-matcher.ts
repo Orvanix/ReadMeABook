@@ -273,6 +273,44 @@ export async function enrichAudiobooksWithMatches(
 }
 
 /**
+ * Get all ASINs that are considered "available" — present in library or have completed requests.
+ * Used by paginated API routes to exclude available items at the DB level.
+ */
+export async function getAvailableAsins(): Promise<Set<string>> {
+  const [libraryItems, completedRequests] = await Promise.all([
+    // ASINs present in the library (Plex or Audiobookshelf)
+    prisma.plexLibrary.findMany({
+      where: { asin: { not: null } },
+      select: { asin: true },
+      distinct: ['asin'],
+    }),
+    // ASINs with completed audiobook requests
+    prisma.audiobook.findMany({
+      where: {
+        audibleAsin: { not: null },
+        requests: {
+          some: {
+            status: 'completed',
+            type: 'audiobook',
+            deletedAt: null,
+          },
+        },
+      },
+      select: { audibleAsin: true },
+    }),
+  ]);
+
+  const asins = new Set<string>();
+  for (const item of libraryItems) {
+    if (item.asin) asins.add(item.asin);
+  }
+  for (const item of completedRequests) {
+    if (item.audibleAsin) asins.add(item.audibleAsin);
+  }
+  return asins;
+}
+
+/**
  * Normalize ISBN for comparison (remove dashes and spaces)
  */
 function normalizeISBN(isbn: string): string {
