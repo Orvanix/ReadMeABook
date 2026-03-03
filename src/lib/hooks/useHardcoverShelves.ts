@@ -133,3 +133,56 @@ export function useDeleteHardcoverShelf() {
 
   return { deleteShelf, isLoading, error };
 }
+
+export function useUpdateHardcoverShelf() {
+  const { accessToken } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const updateShelf = async (
+    shelfId: string,
+    updates: { listId?: string; apiToken?: string },
+  ) => {
+    if (!accessToken) throw new Error('Not authenticated');
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetchWithAuth(
+        `/api/user/hardcover-shelves/${shelfId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to update list');
+      }
+
+      // Revalidate shelves list
+      mutate(
+        (key) =>
+          typeof key === 'string' &&
+          key.includes('/api/user/hardcover-shelves'),
+      );
+      mutate(
+        (key) => typeof key === 'string' && key.includes('/api/user/shelves'),
+      );
+
+      return data.shelf as HardcoverShelf;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return { updateShelf, isLoading, error };
+}

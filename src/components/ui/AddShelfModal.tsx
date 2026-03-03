@@ -161,19 +161,11 @@ export function AddShelfModal({ isOpen, onClose }: AddShelfModalProps) {
           {provider === 'goodreads' ? (
             <>
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-500/10 dark:to-orange-500/10 flex items-center justify-center ring-1 ring-amber-200/50 dark:ring-amber-500/10 flex-shrink-0">
-                <svg
-                  className="w-5 h-5 text-amber-600 dark:text-amber-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m9.86-2.556a4.5 4.5 0 00-6.364-6.364L4.5 8.257a4.5 4.5 0 007.244 1.242"
-                  />
-                </svg>
+                <img
+                  src="/goodreads-icon.png"
+                  alt="Goodreads"
+                  className="w-5 h-5 object-contain"
+                />
               </div>
               <div className="min-w-0">
                 <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">
@@ -185,19 +177,11 @@ export function AddShelfModal({ isOpen, onClose }: AddShelfModalProps) {
           ) : (
             <>
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-500/10 dark:to-blue-500/10 flex items-center justify-center ring-1 ring-indigo-200/50 dark:ring-indigo-500/10 flex-shrink-0">
-                <svg
-                  className="w-5 h-5 text-indigo-600 dark:text-indigo-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
-                  />
-                </svg>
+                <img
+                  src="/hardcover.svg"
+                  alt="Hardcover"
+                  className="w-6 h-6 object-contain"
+                />
               </div>
               <div className="min-w-0">
                 <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">

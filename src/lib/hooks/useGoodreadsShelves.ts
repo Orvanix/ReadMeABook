@@ -125,3 +125,53 @@ export function useDeleteGoodreadsShelf() {
 
   return { deleteShelf, isLoading, error };
 }
+
+export function useUpdateGoodreadsShelf() {
+  const { accessToken } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const updateShelf = async (shelfId: string, rssUrl: string) => {
+    if (!accessToken) throw new Error('Not authenticated');
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetchWithAuth(
+        `/api/user/goodreads-shelves/${shelfId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rssUrl }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to update shelf');
+      }
+
+      // Revalidate shelves list
+      mutate(
+        (key) =>
+          typeof key === 'string' &&
+          key.includes('/api/user/goodreads-shelves'),
+      );
+      mutate(
+        (key) => typeof key === 'string' && key.includes('/api/user/shelves'),
+      );
+
+      return data.shelf as GoodreadsShelf;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return { updateShelf, isLoading, error };
+}
