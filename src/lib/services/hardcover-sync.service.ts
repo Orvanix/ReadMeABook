@@ -70,6 +70,8 @@ export async function processHardcoverShelves(
         }
       } catch (err) {
         log.error(`Failed to decrypt API token for user ${shelf.user.plexUsername}`);
+        stats.errors++;
+        continue;
       }
 
       let fetchedData: { listName: string; books: HardcoverApiBook[] };
