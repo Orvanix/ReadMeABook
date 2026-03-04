@@ -7,7 +7,9 @@
  */
 
 import axios from 'axios';
+import { RMABLogger } from '@/lib/utils/logger';
 
+const logger = RMABLogger.create('HardcoverAPI');
 const HARDCOVER_API_URL = 'https://api.hardcover.app/v1/graphql';
 
 export interface HardcoverApiBook {
@@ -33,6 +35,7 @@ interface HardcoverListData {
 }
 
 const PAGE_SIZE = 100;
+const MAX_PAGES = 50;
 
 /** Extract HardcoverApiBook[] from an array of book-containing items */
 function extractBooks(items: Array<{ book?: HardcoverBookNode }>): HardcoverApiBook[] {
@@ -106,9 +109,10 @@ export async function fetchHardcoverList(
 
     const allBooks: HardcoverApiBook[] = [];
     let offset = 0;
+    let page = 0;
 
     // Paginate until fewer results than PAGE_SIZE are returned
-    while (true) {
+    while (++page <= MAX_PAGES) {
       const response = await axios.post(
         HARDCOVER_API_URL,
         { query, variables: { statusId, limit: PAGE_SIZE, offset } },
@@ -274,8 +278,9 @@ export async function fetchHardcoverList(
     // Paginate if first page was full
     if (firstPageItems.length >= PAGE_SIZE) {
       let offset = PAGE_SIZE;
+      let page = 1; // first page already fetched
 
-      while (true) {
+      while (++page <= MAX_PAGES) {
         const pageResponse = await axios.post(
           HARDCOVER_API_URL,
           {
@@ -291,7 +296,13 @@ export async function fetchHardcoverList(
           },
         );
 
-        if (pageResponse.data?.errors) break;
+        if (pageResponse.data?.errors) {
+          logger.warn('Hardcover pagination interrupted by API error', {
+            errors: pageResponse.data.errors,
+            offset,
+          });
+          break;
+        }
 
         let pageListsData: HardcoverListData[];
         if (isIntId) {

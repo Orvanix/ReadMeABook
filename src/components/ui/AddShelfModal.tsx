@@ -77,11 +77,7 @@ export function AddShelfModal({ isOpen, onClose }: AddShelfModalProps) {
         setRssUrl('');
       } else {
         const finalId = listType === 'status' ? `status-${statusId}` : customListId.trim();
-        let cleanedToken = apiToken.trim();
-        if (cleanedToken.toLowerCase().startsWith('bearer ')) {
-          cleanedToken = cleanedToken.slice(7).trim();
-        }
-        const shelf = await addHardcover(cleanedToken, finalId);
+        const shelf = await addHardcover(apiToken.trim(), finalId);
         setSuccessMessage(`Added list "${shelf.name}" successfully!`);
         setApiToken('');
         setCustomListId('');

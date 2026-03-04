@@ -26,14 +26,14 @@ export function ManageShelfModal({ shelf, isOpen, onClose }: ManageShelfModalPro
   const { updateShelf: updateGoodreads, isLoading: isUpdatingGoodreads, error: goodreadsError } = useUpdateGoodreadsShelf();
   const { updateShelf: updateHardcover, isLoading: isUpdatingHardcover, error: hardcoverError } = useUpdateHardcoverShelf();
 
-  // Reset form when shelf changes
+  // Reset form when shelf changes (use shelf?.id for stable reference)
   React.useEffect(() => {
     if (shelf) {
       setRssUrl(shelf.type === 'goodreads' ? shelf.sourceId : '');
       setListId(shelf.type === 'hardcover' ? shelf.sourceId : '');
       setApiToken('');
     }
-  }, [shelf]);
+  }, [shelf?.id]);
 
   if (!shelf) return null;
 

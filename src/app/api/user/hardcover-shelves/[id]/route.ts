@@ -106,13 +106,16 @@ export async function PATCH(
       // Validate token/listId by fetching the list before saving
       if (cleanedToken || newListId) {
         const encryptionService = getEncryptionService();
-        const tokenToTest = cleanedToken || (() => {
+        let tokenToTest = cleanedToken || shelf.apiToken;
+        if (!cleanedToken) {
           try {
-            return encryptionService.isEncryptedFormat(shelf.apiToken)
-              ? encryptionService.decrypt(shelf.apiToken)
-              : shelf.apiToken;
-          } catch { return shelf.apiToken; }
-        })();
+            if (encryptionService.isEncryptedFormat(shelf.apiToken)) {
+              tokenToTest = encryptionService.decrypt(shelf.apiToken);
+            }
+          } catch {
+            // Decryption failed, fall back to raw token
+          }
+        }
         const listIdToTest = newListId || shelf.listId;
 
         try {
