@@ -20,7 +20,9 @@ vi.mock('@/lib/utils/jwt', () => ({
   verifyAccessToken: verifyAccessTokenMock,
 }));
 
-const makeRequest = (authHeader?: string) => ({
+const makeRequest = (authHeader?: string, pathname = '/api/requests', method = 'GET') => ({
+  method,
+  nextUrl: { pathname },
   headers: {
     get: (key: string) => {
       if (key.toLowerCase() === 'authorization') {
@@ -231,7 +233,7 @@ describe('auth middleware', () => {
       expect(payload.message).toMatch(/invalid.*expired/i);
     });
 
-    it('accepts valid API tokens for active users', async () => {
+    it('accepts valid API tokens for active users on allowed endpoints', async () => {
       prismaMock.apiToken.findUnique.mockResolvedValue({
         id: 'token-1',
         tokenHash: testTokenHash,
@@ -250,11 +252,102 @@ describe('auth middleware', () => {
       const handler = vi.fn(async (req: any) =>
         NextResponse.json({ ok: true, userId: req.user?.id })
       );
-      const response = await requireAuth(makeRequest(`Bearer ${testToken}`) as any, handler);
+      const response = await requireAuth(
+        makeRequest(`Bearer ${testToken}`, '/api/requests', 'GET') as any,
+        handler
+      );
       const payload = await response.json();
 
       expect(handler).toHaveBeenCalled();
       expect(payload.userId).toBe('user-1');
+    });
+
+    it('blocks API tokens on endpoints not in the allowlist', async () => {
+      prismaMock.apiToken.findUnique.mockResolvedValue({
+        id: 'token-1',
+        tokenHash: testTokenHash,
+        role: 'admin',
+        expiresAt: null,
+        tokenUser: {
+          id: 'user-1',
+          plexUsername: 'activeuser',
+          role: 'admin',
+          deletedAt: null,
+        },
+      });
+      prismaMock.apiToken.update.mockResolvedValue({});
+      const { requireAuth } = await import('@/lib/middleware/auth');
+
+      const handler = vi.fn();
+      const response = await requireAuth(
+        makeRequest(`Bearer ${testToken}`, '/api/admin/settings', 'GET') as any,
+        handler
+      );
+      const payload = await response.json();
+
+      expect(handler).not.toHaveBeenCalled();
+      expect(response.status).toBe(403);
+      expect(payload.message).toMatch(/not available via API token/i);
+    });
+
+    it('allows API tokens on all 5 permitted endpoints', async () => {
+      const allowedPaths = [
+        '/api/auth/me',
+        '/api/requests',
+        '/api/admin/metrics',
+        '/api/admin/downloads/active',
+        '/api/admin/requests/recent',
+      ];
+
+      for (const path of allowedPaths) {
+        vi.clearAllMocks();
+        prismaMock.apiToken.findUnique.mockResolvedValue({
+          id: 'token-1',
+          tokenHash: testTokenHash,
+          role: 'admin',
+          expiresAt: null,
+          tokenUser: {
+            id: 'user-1',
+            plexUsername: 'activeuser',
+            role: 'admin',
+            deletedAt: null,
+          },
+        });
+        prismaMock.apiToken.update.mockResolvedValue({});
+        const { requireAuth } = await import('@/lib/middleware/auth');
+
+        const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+        const response = await requireAuth(
+          makeRequest(`Bearer ${testToken}`, path, 'GET') as any,
+          handler
+        );
+
+        expect(handler).toHaveBeenCalled();
+        expect(response.status).toBe(200);
+      }
+    });
+
+    it('does not restrict JWT-authenticated users to the allowlist', async () => {
+      verifyAccessTokenMock.mockReturnValue({
+        sub: 'user-1',
+        plexId: 'plex-1',
+        username: 'user',
+        role: 'admin',
+        iat: 1,
+        exp: 2,
+      });
+      prismaMock.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      const { requireAuth } = await import('@/lib/middleware/auth');
+
+      const handler = vi.fn(async () => NextResponse.json({ ok: true }));
+      // Use a non-allowlisted endpoint — JWT should still work
+      const response = await requireAuth(
+        makeRequest('Bearer jwttoken', '/api/admin/settings', 'POST') as any,
+        handler
+      );
+
+      expect(handler).toHaveBeenCalled();
+      expect(response.status).toBe(200);
     });
   });
 

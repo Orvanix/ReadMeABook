@@ -7,16 +7,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { fetchWithAuth } from '@/lib/utils/api';
-
-interface ApiToken {
-  id: string;
-  name: string;
-  tokenPrefix: string;
-  role: string;
-  lastUsedAt: string | null;
-  expiresAt: string | null;
-  createdAt: string;
-}
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import Link from 'next/link';
+import type { ApiToken } from '@/lib/types/api-tokens';
 
 export function ApiTokensSection() {
   const [tokens, setTokens] = useState<ApiToken[]>([]);
@@ -29,6 +22,7 @@ export function ApiTokensSection() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
 
   const fetchTokens = useCallback(async () => {
     try {
@@ -93,7 +87,11 @@ export function ApiTokensSection() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteConfirmed = async () => {
+    const id = confirmRevokeId;
+    if (!id) return;
+
+    setConfirmRevokeId(null);
     setDeletingId(id);
     setError(null);
 
@@ -116,9 +114,13 @@ export function ApiTokensSection() {
 
   const handleCopy = async () => {
     if (createdToken) {
-      await navigator.clipboard.writeText(createdToken);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(createdToken);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        setError('Failed to copy to clipboard. Please select and copy the token manually.');
+      }
     }
   };
 
@@ -141,7 +143,10 @@ export function ApiTokensSection() {
             API Tokens
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Create personal API tokens for programmatic access to the API.
+            Create personal API tokens for programmatic access to the API.{' '}
+            <Link href="/api-docs" className="text-blue-600 dark:text-blue-400 hover:underline">
+              View API documentation
+            </Link>
           </p>
         </div>
       </div>
@@ -296,7 +301,7 @@ export function ApiTokensSection() {
                       </td>
                       <td className="py-3 px-2 text-right">
                         <button
-                          onClick={() => handleDelete(token.id)}
+                          onClick={() => setConfirmRevokeId(token.id)}
                           disabled={deletingId === token.id}
                           className="px-3 py-1 text-xs font-medium rounded-lg bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 transition-colors disabled:opacity-50"
                         >
@@ -323,6 +328,26 @@ export function ApiTokensSection() {
           </div>
         </div>
       </div>
+
+      {/* Revoke confirmation dialog */}
+      <ConfirmModal
+        isOpen={confirmRevokeId !== null}
+        title="Revoke API token"
+        message={
+          <>
+            Are you sure you want to revoke{' '}
+            <span className="font-medium text-gray-800 dark:text-gray-100">
+              &ldquo;{tokens.find((t) => t.id === confirmRevokeId)?.name ?? 'this token'}&rdquo;
+            </span>
+            ? Any integrations using this token will immediately lose access. This cannot be undone.
+          </>
+        }
+        confirmText="Revoke token"
+        cancelText="Cancel"
+        variant="danger"
+        onConfirm={handleDeleteConfirmed}
+        onClose={() => setConfirmRevokeId(null)}
+      />
     </section>
   );
 }

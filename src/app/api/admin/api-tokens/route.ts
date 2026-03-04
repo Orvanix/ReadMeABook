@@ -4,17 +4,15 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
 import { requireAuth, requireAdmin, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { prisma } from '@/lib/db';
 import { RMABLogger } from '@/lib/utils/logger';
 import { checkApiTokenCreateRateLimit } from '@/lib/utils/apiTokenRateLimit';
+import { MAX_TOKENS_PER_USER } from '@/lib/constants/api-tokens';
+import { generateApiToken } from '@/lib/utils/api-token';
 import { z } from 'zod';
 
 const logger = RMABLogger.create('API.Admin.ApiTokens');
-
-const API_TOKEN_PREFIX = 'rmab_';
-const TOKEN_RANDOM_BYTES = 32;
 
 const CreateTokenSchema = z.object({
   name: z.string().min(1).max(100),
@@ -104,14 +102,29 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
         }
 
+        // Enforce per-user token cap (count only active, non-expired tokens)
+        const activeTokenCount = await prisma.apiToken.count({
+          where: {
+            userId: targetUserId,
+            OR: [
+              { expiresAt: null },
+              { expiresAt: { gt: new Date() } },
+            ],
+          },
+        });
+
+        if (activeTokenCount >= MAX_TOKENS_PER_USER) {
+          return NextResponse.json(
+            { error: `Token limit reached. Users may have at most ${MAX_TOKENS_PER_USER} active API tokens.` },
+            { status: 403 }
+          );
+        }
+
         // Determine token role (defaults to target user's role)
         const tokenRole = role || targetUser.role;
 
         // Generate the token
-        const randomPart = crypto.randomBytes(TOKEN_RANDOM_BYTES).toString('hex');
-        const fullToken = `${API_TOKEN_PREFIX}${randomPart}`;
-        const tokenHash = crypto.createHash('sha256').update(fullToken).digest('hex');
-        const tokenPrefix = fullToken.substring(0, 12); // "rmab_" + 7 chars
+        const { fullToken, tokenHash, tokenPrefix } = generateApiToken();
 
         const apiToken = await prisma.apiToken.create({
           data: {

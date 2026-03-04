@@ -7,20 +7,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { fetchWithAuth } from '@/lib/utils/api';
-
-interface ApiToken {
-  id: string;
-  name: string;
-  tokenPrefix: string;
-  role: string;
-  createdBy: string;
-  createdById: string;
-  tokenUser: string;
-  tokenUserId: string;
-  lastUsedAt: string | null;
-  expiresAt: string | null;
-  createdAt: string;
-}
+import { ConfirmDialog } from '@/app/admin/components/ConfirmDialog';
+import Link from 'next/link';
+import type { AdminApiToken } from '@/lib/types/api-tokens';
 
 interface UserOption {
   id: string;
@@ -29,7 +18,7 @@ interface UserOption {
 }
 
 export function ApiTab() {
-  const [tokens, setTokens] = useState<ApiToken[]>([]);
+  const [tokens, setTokens] = useState<AdminApiToken[]>([]);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -42,6 +31,7 @@ export function ApiTab() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
 
   const fetchTokens = useCallback(async () => {
     try {
@@ -125,7 +115,11 @@ export function ApiTab() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDeleteConfirmed = async () => {
+    const id = confirmRevokeId;
+    if (!id) return;
+
+    setConfirmRevokeId(null);
     setDeletingId(id);
     setError(null);
 
@@ -148,9 +142,13 @@ export function ApiTab() {
 
   const handleCopy = async () => {
     if (createdToken) {
-      await navigator.clipboard.writeText(createdToken);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      try {
+        await navigator.clipboard.writeText(createdToken);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        setError('Failed to copy to clipboard. Please select and copy the token manually.');
+      }
     }
   };
 
@@ -191,7 +189,10 @@ export function ApiTab() {
       <div>
         <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">API Tokens</h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          Manage API tokens for all users. Create tokens for any user with any role for programmatic access.
+          Manage API tokens for all users. Create tokens for any user with any role for programmatic access.{' '}
+          <Link href="/api-docs" className="text-blue-600 dark:text-blue-400 hover:underline">
+            View API documentation
+          </Link>
         </p>
       </div>
 
@@ -384,7 +385,7 @@ export function ApiTab() {
                   </td>
                   <td className="py-3 px-2 text-right">
                     <button
-                      onClick={() => handleDelete(token.id)}
+                      onClick={() => setConfirmRevokeId(token.id)}
                       disabled={deletingId === token.id}
                       className="px-3 py-1 text-xs font-medium rounded-lg bg-red-100 dark:bg-red-900/30 hover:bg-red-200 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 transition-colors disabled:opacity-50"
                     >
@@ -409,6 +410,26 @@ export function ApiTab() {
   ${typeof window !== 'undefined' ? window.location.origin : 'https://your-instance'}/api/requests`}
         </pre>
       </div>
+
+      {/* Revoke confirmation dialog */}
+      <ConfirmDialog
+        isOpen={confirmRevokeId !== null}
+        title="Revoke API token"
+        message={
+          <>
+            Are you sure you want to revoke{' '}
+            <span className="font-medium text-gray-700 dark:text-gray-200">
+              &ldquo;{tokens.find((t) => t.id === confirmRevokeId)?.name ?? 'this token'}&rdquo;
+            </span>
+            ? Any integrations using this token will immediately lose access. This cannot be undone.
+          </>
+        }
+        confirmLabel="Revoke token"
+        cancelLabel="Cancel"
+        confirmVariant="danger"
+        onConfirm={handleDeleteConfirmed}
+        onCancel={() => setConfirmRevokeId(null)}
+      />
     </div>
   );
 }

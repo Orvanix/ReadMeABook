@@ -1,21 +1,26 @@
 /**
  * Component: API Token Rate Limit Tests
- * Documentation: documentation/backend/services/auth.md
+ * Documentation: documentation/backend/services/api-tokens.md
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkApiTokenCreateRateLimit,
   checkApiTokenRevokeRateLimit,
+  _resetBuckets,
+  _getBucketCount,
 } from '@/lib/utils/apiTokenRateLimit';
+import { MAX_TOKENS_PER_USER } from '@/lib/constants/api-tokens';
 
 describe('API Token Rate Limiting', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    _resetBuckets();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    _resetBuckets();
   });
 
   describe('checkApiTokenCreateRateLimit', () => {
@@ -117,6 +122,82 @@ describe('API Token Rate Limiting', () => {
       // Should have ~30 seconds left
       expect(result.retryAfterSeconds).toBeLessThanOrEqual(30);
       expect(result.retryAfterSeconds).toBeGreaterThan(0);
+    });
+  });
+
+  describe('lazy eviction', () => {
+    it('deletes expired buckets when they are next accessed', () => {
+      const actorId = 'user-evict-1';
+
+      // Create a bucket
+      checkApiTokenCreateRateLimit(actorId);
+      expect(_getBucketCount()).toBe(1);
+
+      // Expire the window
+      vi.advanceTimersByTime(61 * 1000);
+
+      // Accessing the same key should evict the old bucket and create a fresh one
+      checkApiTokenCreateRateLimit(actorId);
+      // Should still be 1 (old one deleted, new one created)
+      expect(_getBucketCount()).toBe(1);
+    });
+
+    it('does not delete buckets that are still active', () => {
+      // Create buckets for two actors
+      checkApiTokenCreateRateLimit('actor-a');
+      checkApiTokenCreateRateLimit('actor-b');
+      expect(_getBucketCount()).toBe(2);
+
+      // Advance partially (not past the 60s window)
+      vi.advanceTimersByTime(30 * 1000);
+
+      // Both should still be there
+      checkApiTokenCreateRateLimit('actor-a');
+      expect(_getBucketCount()).toBe(2);
+    });
+  });
+
+  describe('periodic sweep', () => {
+    it('sweeps all expired buckets every 100 checks', () => {
+      // Create 10 unique actor buckets
+      for (let i = 0; i < 10; i++) {
+        checkApiTokenCreateRateLimit(`sweep-actor-${i}`);
+      }
+      expect(_getBucketCount()).toBe(10);
+
+      // Expire all windows
+      vi.advanceTimersByTime(61 * 1000);
+
+      // Add some fresh buckets that should NOT be swept
+      checkApiTokenCreateRateLimit('sweep-fresh-1');
+      checkApiTokenCreateRateLimit('sweep-fresh-2');
+
+      // We've done 10 + 2 = 12 calls so far. Need 100 total to trigger sweep.
+      // Do 88 more calls with unique actors to reach 100
+      for (let i = 0; i < 88; i++) {
+        checkApiTokenCreateRateLimit(`sweep-filler-${i}`);
+      }
+
+      // After the 100th call, the sweep should have removed the 10 expired buckets.
+      // Remaining: 2 fresh + 88 filler = 90
+      expect(_getBucketCount()).toBe(90);
+    });
+  });
+
+  describe('_resetBuckets', () => {
+    it('clears all buckets', () => {
+      checkApiTokenCreateRateLimit('reset-1');
+      checkApiTokenCreateRateLimit('reset-2');
+      expect(_getBucketCount()).toBeGreaterThan(0);
+
+      _resetBuckets();
+      expect(_getBucketCount()).toBe(0);
+    });
+  });
+
+  describe('MAX_TOKENS_PER_USER constant', () => {
+    it('is set to 25', () => {
+      expect(MAX_TOKENS_PER_USER).toBe(25);
     });
   });
 });

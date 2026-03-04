@@ -8,10 +8,9 @@ import crypto from 'crypto';
 import { verifyAccessToken, TokenPayload } from '../utils/jwt';
 import { prisma } from '../db';
 import { RMABLogger } from '../utils/logger';
+import { API_TOKEN_PREFIX, isEndpointAllowed } from '../constants/api-tokens';
 
 const logger = RMABLogger.create('Auth');
-
-const API_TOKEN_PREFIX = 'rmab_';
 
 export interface AuthenticatedRequest extends NextRequest {
   user?: TokenPayload & { id: string };
@@ -124,6 +123,23 @@ export async function requireAuth(
           message: 'Invalid or expired API token',
         },
         { status: 401 }
+      );
+    }
+
+    // Enforce endpoint allowlist for API token auth
+    const pathname = request.nextUrl.pathname;
+    const method = request.method;
+    if (!isEndpointAllowed(method, pathname)) {
+      logger.warn('API token used on restricted endpoint', {
+        method,
+        path: pathname,
+      });
+      return NextResponse.json(
+        {
+          error: 'Forbidden',
+          message: 'This endpoint is not available via API token authentication',
+        },
+        { status: 403 }
       );
     }
 
