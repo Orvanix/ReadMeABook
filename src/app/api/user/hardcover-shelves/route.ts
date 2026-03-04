@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, AuthenticatedRequest } from '@/lib/middleware/auth';
 import { prisma } from '@/lib/db';
-import { fetchHardcoverList } from '@/lib/services/hardcover-sync.service';
+import { fetchHardcoverList } from '@/lib/services/hardcover-api.service';
 import { getJobQueueService } from '@/lib/services/job-queue.service';
 import { getEncryptionService } from '@/lib/services/encryption.service';
 import { z } from 'zod';

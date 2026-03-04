@@ -19,8 +19,8 @@ interface ManageShelfModalProps {
 }
 
 export function ManageShelfModal({ shelf, isOpen, onClose }: ManageShelfModalProps) {
-  const [rssUrl, setRssUrl] = useState(shelf?.type === 'goodreads' ? shelf.sourceId : '');
-  const [listId, setListId] = useState(shelf?.type === 'hardcover' ? shelf.sourceId : '');
+  const [rssUrl, setRssUrl] = useState('');
+  const [listId, setListId] = useState('');
   const [apiToken, setApiToken] = useState('');
 
   const { updateShelf: updateGoodreads, isLoading: isUpdatingGoodreads, error: goodreadsError } = useUpdateGoodreadsShelf();

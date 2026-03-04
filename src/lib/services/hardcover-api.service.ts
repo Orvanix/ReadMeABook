@@ -17,6 +17,48 @@ export interface HardcoverApiBook {
   coverUrl?: string;
 }
 
+/** Shape of a book node returned inside user_books or list_books from the Hardcover GraphQL API */
+interface HardcoverBookNode {
+  id?: number;
+  title?: string;
+  cached_image?: string | { url?: string };
+  image?: { url?: string };
+  contributions?: Array<{ author?: { name?: string } }>;
+}
+
+/** Shape of a list object returned from the Hardcover GraphQL API */
+interface HardcoverListData {
+  name?: string;
+  list_books?: Array<{ book?: HardcoverBookNode }>;
+}
+
+const PAGE_SIZE = 100;
+
+/** Extract HardcoverApiBook[] from an array of book-containing items */
+function extractBooks(items: Array<{ book?: HardcoverBookNode }>): HardcoverApiBook[] {
+  const books: HardcoverApiBook[] = [];
+  for (const item of items) {
+    const book = item.book;
+    if (!book || !book.id) continue;
+
+    const authorName =
+      book.contributions?.[0]?.author?.name || 'Unknown Author';
+    const cachedImg = book.cached_image;
+    const coverUrl =
+      (typeof cachedImg === 'string' ? cachedImg : cachedImg?.url) ||
+      book.image?.url ||
+      undefined;
+
+    books.push({
+      bookId: book.id.toString(),
+      title: book.title || 'Unknown Title',
+      author: authorName,
+      coverUrl,
+    });
+  }
+  return books;
+}
+
 /**
  * Fetch a Hardcover List using their GraphQL API.
  * This handles both 'status_id' user_books or 'list_id' list_books queries.
@@ -32,9 +74,9 @@ export async function fetchHardcoverList(
   if (isStatus) {
     const statusId = parseInt(listIdStr.replace('status-', ''), 10);
     const query = `
-      query GetStatusBooks($statusId: Int!) {
+      query GetStatusBooks($statusId: Int!, $limit: Int!, $offset: Int!) {
         me {
-          user_books(where: {status_id: {_eq: $statusId}}, limit: 100, order_by: {id: desc}) {
+          user_books(where: {status_id: {_eq: $statusId}}, limit: $limit, offset: $offset, order_by: {id: desc}) {
             book {
               id
               title
@@ -53,27 +95,6 @@ export async function fetchHardcoverList(
       }
     `;
 
-    const response = await axios.post(
-      HARDCOVER_API_URL,
-      { query, variables: { statusId } },
-      {
-        headers: {
-          Authorization: `Bearer ${apiToken}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 30000,
-      },
-    );
-
-    if (response.data?.errors) {
-      throw new Error(
-        `Hardcover API Error: ${response.data.errors[0]?.message}`,
-      );
-    }
-
-    const userBooks = response.data?.data?.me?.[0]?.user_books || [];
-    let listName = 'Hardcover Status List';
-
     // Map status numbers to names
     const statusNames: Record<number, string> = {
       1: 'Want to Read',
@@ -81,30 +102,41 @@ export async function fetchHardcoverList(
       3: 'Read',
       4: 'Did Not Finish',
     };
-    listName = statusNames[statusId] || `Status ${statusId}`;
+    const listName = statusNames[statusId] || `Status ${statusId}`;
 
-    const books: HardcoverApiBook[] = [];
-    for (const item of userBooks) {
-      const book = item.book;
-      if (!book || !book.id) continue;
+    const allBooks: HardcoverApiBook[] = [];
+    let offset = 0;
 
-      const authorName =
-        book.contributions?.[0]?.author?.name || 'Unknown Author';
-      const cachedImg = book.cached_image;
-      const coverUrl =
-        (typeof cachedImg === 'string' ? cachedImg : cachedImg?.url) ||
-        book.image?.url ||
-        undefined;
+    // Paginate until fewer results than PAGE_SIZE are returned
+    while (true) {
+      const response = await axios.post(
+        HARDCOVER_API_URL,
+        { query, variables: { statusId, limit: PAGE_SIZE, offset } },
+        {
+          headers: {
+            Authorization: `Bearer ${apiToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 30000,
+        },
+      );
 
-      books.push({
-        bookId: book.id.toString(),
-        title: book.title || 'Unknown Title',
-        author: authorName,
-        coverUrl,
-      });
+      if (response.data?.errors) {
+        throw new Error(
+          `Hardcover API Error: ${response.data.errors[0]?.message}`,
+        );
+      }
+
+      const userBooks: Array<{ book?: HardcoverBookNode }> =
+        response.data?.data?.me?.[0]?.user_books || [];
+      const pageBooks = extractBooks(userBooks);
+      allBooks.push(...pageBooks);
+
+      if (userBooks.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
     }
 
-    return { listName, books };
+    return { listName, books: allBooks };
   } else {
     // Custom list query
     // - URL with @username → query that user's lists by slug
@@ -137,7 +169,7 @@ export async function fetchHardcoverList(
 
     const listBookFields = `
       name
-      list_books(limit: 100, order_by: {id: desc}) {
+      list_books(limit: $limit, offset: $offset, order_by: {id: desc}) {
         book {
           id title cached_image image { url }
           contributions { author { name } }
@@ -147,7 +179,7 @@ export async function fetchHardcoverList(
 
     // Numeric ID: globally unique, query the lists table directly
     const queryById = `
-      query GetListBooks($listId: Int!) {
+      query GetListBooks($listId: Int!, $limit: Int!, $offset: Int!) {
         lists(where: {id: {_eq: $listId}}, limit: 1) {
           ${listBookFields}
         }
@@ -156,7 +188,7 @@ export async function fetchHardcoverList(
 
     // Slug with username: query through the users table to scope to that user
     const queryByUserSlug = `
-      query GetUserListBySlug($username: citext!, $slug: String!) {
+      query GetUserListBySlug($username: citext!, $slug: String!, $limit: Int!, $offset: Int!) {
         users(where: {username: {_eq: $username}}, limit: 1) {
           lists(where: {slug: {_eq: $slug}}, limit: 1) {
             ${listBookFields}
@@ -167,7 +199,7 @@ export async function fetchHardcoverList(
 
     // Bare slug (no username): scope to the authenticated user via `me`
     const queryByMySlug = `
-      query GetMyListBySlug($slug: String!) {
+      query GetMyListBySlug($slug: String!, $limit: Int!, $offset: Int!) {
         me {
           lists(where: {slug: {_eq: $slug}}, limit: 1) {
             ${listBookFields}
@@ -177,24 +209,25 @@ export async function fetchHardcoverList(
     `;
 
     let activeQuery: string;
-    let variables: Record<string, unknown>;
+    let baseVariables: Record<string, unknown>;
 
     if (isIntId) {
       activeQuery = queryById;
-      variables = { listId: parseInt(listIdStr, 10) };
+      baseVariables = { listId: parseInt(listIdStr, 10) };
     } else if (extractedUsername) {
       activeQuery = queryByUserSlug;
-      variables = { username: extractedUsername, slug: extractedSlug };
+      baseVariables = { username: extractedUsername, slug: extractedSlug };
     } else {
       activeQuery = queryByMySlug;
-      variables = { slug: extractedSlug };
+      baseVariables = { slug: extractedSlug };
     }
 
-    const response = await axios.post(
+    // First request to discover list metadata and first page of books
+    const firstResponse = await axios.post(
       HARDCOVER_API_URL,
       {
         query: activeQuery,
-        variables,
+        variables: { ...baseVariables, limit: PAGE_SIZE, offset: 0 },
       },
       {
         headers: {
@@ -205,21 +238,21 @@ export async function fetchHardcoverList(
       },
     );
 
-    if (response.data?.errors) {
+    if (firstResponse.data?.errors) {
       throw new Error(
-        `Hardcover API Error: ${response.data.errors[0]?.message}`,
+        `Hardcover API Error: ${firstResponse.data.errors[0]?.message}`,
       );
     }
 
     // Extract lists array from the response based on which query was used
-    let listsData: any[];
+    let listsData: HardcoverListData[];
     if (isIntId) {
-      listsData = response.data?.data?.lists || [];
+      listsData = firstResponse.data?.data?.lists || [];
     } else if (extractedUsername) {
-      const users = response.data?.data?.users || [];
+      const users = firstResponse.data?.data?.users || [];
       listsData = users[0]?.lists || [];
     } else {
-      listsData = response.data?.data?.me?.[0]?.lists || [];
+      listsData = firstResponse.data?.data?.me?.[0]?.lists || [];
     }
 
     if (listsData.length === 0) {
@@ -235,29 +268,49 @@ export async function fetchHardcoverList(
     }
 
     const listName = listsData[0].name || 'Hardcover List';
-    const listBooks = listsData[0].list_books || [];
+    const firstPageItems = listsData[0].list_books || [];
+    const allBooks = extractBooks(firstPageItems);
 
-    const books: HardcoverApiBook[] = [];
-    for (const item of listBooks) {
-      const book = item.book;
-      if (!book || !book.id) continue;
+    // Paginate if first page was full
+    if (firstPageItems.length >= PAGE_SIZE) {
+      let offset = PAGE_SIZE;
 
-      const authorName =
-        book.contributions?.[0]?.author?.name || 'Unknown Author';
-      const cachedImg = book.cached_image;
-      const coverUrl =
-        (typeof cachedImg === 'string' ? cachedImg : cachedImg?.url) ||
-        book.image?.url ||
-        undefined;
+      while (true) {
+        const pageResponse = await axios.post(
+          HARDCOVER_API_URL,
+          {
+            query: activeQuery,
+            variables: { ...baseVariables, limit: PAGE_SIZE, offset },
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${apiToken}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 30000,
+          },
+        );
 
-      books.push({
-        bookId: book.id.toString(),
-        title: book.title || 'Unknown Title',
-        author: authorName,
-        coverUrl,
-      });
+        if (pageResponse.data?.errors) break;
+
+        let pageListsData: HardcoverListData[];
+        if (isIntId) {
+          pageListsData = pageResponse.data?.data?.lists || [];
+        } else if (extractedUsername) {
+          const users = pageResponse.data?.data?.users || [];
+          pageListsData = users[0]?.lists || [];
+        } else {
+          pageListsData = pageResponse.data?.data?.me?.[0]?.lists || [];
+        }
+
+        const pageItems = pageListsData[0]?.list_books || [];
+        allBooks.push(...extractBooks(pageItems));
+
+        if (pageItems.length < PAGE_SIZE) break;
+        offset += PAGE_SIZE;
+      }
     }
 
-    return { listName, books };
+    return { listName, books: allBooks };
   }
 }

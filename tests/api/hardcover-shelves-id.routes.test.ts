@@ -16,7 +16,10 @@ const jobQueueMock = vi.hoisted(() => ({
 const encryptionMock = vi.hoisted(() => ({
   encrypt: vi.fn((s: string) => `enc:${s}`),
   decrypt: vi.fn((s: string) => s.replace('enc:', '')),
+  isEncryptedFormat: vi.fn((s: string) => s.startsWith('enc:')),
 }));
+
+const fetchHardcoverListMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/middleware/auth', () => ({
   requireAuth: requireAuthMock,
@@ -32,6 +35,10 @@ vi.mock('@/lib/services/job-queue.service', () => ({
 
 vi.mock('@/lib/services/encryption.service', () => ({
   getEncryptionService: () => encryptionMock,
+}));
+
+vi.mock('@/lib/services/hardcover-api.service', () => ({
+  fetchHardcoverList: fetchHardcoverListMock,
 }));
 
 const SHELF = {
@@ -106,6 +113,10 @@ describe('PATCH /api/user/hardcover-shelves/[id]', () => {
     vi.clearAllMocks();
     authRequest = { user: { id: 'user-1', role: 'user' } };
     requireAuthMock.mockImplementation((_req: any, handler: any) => handler(authRequest));
+    encryptionMock.isEncryptedFormat.mockImplementation((s: string) => s.startsWith('enc:'));
+    encryptionMock.encrypt.mockImplementation((s: string) => `enc:${s}`);
+    encryptionMock.decrypt.mockImplementation((s: string) => s.replace('enc:', ''));
+    fetchHardcoverListMock.mockResolvedValue({ listName: 'Test List', books: [] });
   });
 
   it('returns 404 when list does not exist', async () => {

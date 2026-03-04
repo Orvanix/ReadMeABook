@@ -35,7 +35,7 @@ vi.mock('@/lib/services/encryption.service', () => ({
   getEncryptionService: () => encryptionMock,
 }));
 
-vi.mock('@/lib/services/hardcover-sync.service', () => ({
+vi.mock('@/lib/services/hardcover-api.service', () => ({
   fetchHardcoverList: fetchHardcoverListMock,
 }));
 
