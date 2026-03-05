@@ -260,6 +260,7 @@ export async function POST(
             parentRequestId: availableRequest?.id || null, // Link to parent if exists
             status: 'awaiting_approval',
             progress: 0,
+            customSearchTerms: availableRequest?.customSearchTerms || null,
           },
         });
 
@@ -292,6 +293,7 @@ export async function POST(
             parentRequestId: availableRequest?.id || null,
             status: 'pending',
             progress: 0,
+            customSearchTerms: availableRequest?.customSearchTerms || null,
           },
         });
 

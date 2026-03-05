@@ -52,17 +52,32 @@ export async function POST(
           return NextResponse.json({ error: 'Ebook source not specified' }, { status: 400 });
         }
 
-        // Get the parent audiobook request
-        const parentRequest = await prisma.request.findUnique({
+        // Get the request - could be an audiobook request or an existing ebook request
+        const foundRequest = await prisma.request.findUnique({
           where: { id: parentRequestId },
           include: { audiobook: true },
         });
 
-        if (!parentRequest) {
+        if (!foundRequest) {
           return NextResponse.json({ error: 'Request not found' }, { status: 404 });
         }
 
-        if (parentRequest.type !== 'audiobook') {
+        // If this is an ebook request, find the parent audiobook request
+        let parentRequest;
+        if (foundRequest.type === 'ebook') {
+          if (!foundRequest.parentRequestId) {
+            return NextResponse.json({ error: 'Ebook request has no parent audiobook request' }, { status: 400 });
+          }
+          parentRequest = await prisma.request.findUnique({
+            where: { id: foundRequest.parentRequestId },
+            include: { audiobook: true },
+          });
+          if (!parentRequest) {
+            return NextResponse.json({ error: 'Parent audiobook request not found' }, { status: 404 });
+          }
+        } else if (foundRequest.type === 'audiobook') {
+          parentRequest = foundRequest;
+        } else {
           return NextResponse.json({ error: 'Can only select ebooks for audiobook requests' }, { status: 400 });
         }
 
@@ -74,13 +89,16 @@ export async function POST(
         }
 
         // Check for existing ebook request
-        let ebookRequest = await prisma.request.findFirst({
-          where: {
-            parentRequestId,
-            type: 'ebook',
-            deletedAt: null,
-          },
-        });
+        // If we were given an ebook request ID directly, use that; otherwise search by parent
+        let ebookRequest = foundRequest.type === 'ebook'
+          ? foundRequest
+          : await prisma.request.findFirst({
+              where: {
+                parentRequestId: parentRequest.id,
+                type: 'ebook',
+                deletedAt: null,
+              },
+            });
 
         if (ebookRequest && !['failed', 'awaiting_search', 'pending'].includes(ebookRequest.status)) {
           return NextResponse.json({
@@ -109,9 +127,10 @@ export async function POST(
               userId: parentRequest.userId,
               audiobookId: parentRequest.audiobookId,
               type: 'ebook',
-              parentRequestId,
+              parentRequestId: parentRequest.id,
               status: 'searching',
               progress: 0,
+              customSearchTerms: parentRequest.customSearchTerms,
             },
           });
           logger.info(`Created new ebook request ${ebookRequest.id}`);

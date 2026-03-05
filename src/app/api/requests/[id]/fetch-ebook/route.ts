@@ -123,6 +123,7 @@ export async function POST(
             parentRequestId,
             status: 'pending',
             progress: 0,
+            customSearchTerms: parentRequest.customSearchTerms,
           },
         });
 

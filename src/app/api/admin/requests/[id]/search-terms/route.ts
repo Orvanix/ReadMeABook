@@ -100,15 +100,21 @@ export async function PATCH(
             },
           });
 
-          // Queue search job
+          // Queue search job based on request type
           const { getJobQueueService } = await import('@/lib/services/job-queue.service');
           const jobQueue = getJobQueueService();
-          await jobQueue.addSearchJob(id, {
+          const audiobookData = {
             id: existingRequest.audiobook.id,
             title: existingRequest.audiobook.title,
             author: existingRequest.audiobook.author,
             asin: existingRequest.audiobook.audibleAsin || undefined,
-          });
+          };
+
+          if (existingRequest.type === 'ebook') {
+            await jobQueue.addSearchEbookJob(id, audiobookData);
+          } else {
+            await jobQueue.addSearchJob(id, audiobookData);
+          }
 
           searchTriggered = true;
           logger.info(`Search triggered for request ${id} with custom terms`, { requestId: id });

@@ -36,15 +36,24 @@ export async function processSearchEbook(payload: SearchEbookPayload): Promise<a
   logger.info(`Processing ebook request ${requestId} for "${audiobook.title}"`);
 
   try {
-    // Update request status to searching
-    await prisma.request.update({
+    // Update request status to searching and fetch custom search terms
+    const requestRecord = await prisma.request.update({
       where: { id: requestId },
       data: {
         status: 'searching',
         searchAttempts: { increment: 1 },
         updatedAt: new Date(),
       },
+      select: { customSearchTerms: true },
     });
+
+    // Use custom search terms if set, otherwise use audiobook title
+    const effectiveSearchTitle = requestRecord?.customSearchTerms || audiobook.title;
+    const searchAudiobook = { ...audiobook, title: effectiveSearchTitle };
+
+    if (requestRecord?.customSearchTerms) {
+      logger.info(`Using custom search terms: "${effectiveSearchTitle}" (original: "${audiobook.title}")`);
+    }
 
     // Get ebook configuration
     const configService = getConfigService();
@@ -62,7 +71,7 @@ export async function processSearchEbook(payload: SearchEbookPayload): Promise<a
     // ========== STEP 1: Try Anna's Archive (if enabled) ==========
     if (annasArchiveEnabled) {
       logger.info(`Searching Anna's Archive...`);
-      annasArchiveResult = await searchAnnasArchive(audiobook, preferredFormat, logger);
+      annasArchiveResult = await searchAnnasArchive(searchAudiobook, preferredFormat, logger);
 
       if (annasArchiveResult) {
         logger.info(`Found ebook via Anna's Archive (score: ${annasArchiveResult.score})`);
@@ -74,7 +83,7 @@ export async function processSearchEbook(payload: SearchEbookPayload): Promise<a
     // ========== STEP 2: Try Indexer Search (if enabled and no Anna's Archive result) ==========
     if (!annasArchiveResult && indexerSearchEnabled) {
       logger.info(`Searching indexers...`);
-      indexerResult = await searchIndexers(requestId, audiobook, preferredFormat, logger);
+      indexerResult = await searchIndexers(requestId, searchAudiobook, preferredFormat, logger);
 
       if (indexerResult) {
         logger.info(`Found ebook via indexer search (score: ${indexerResult.finalScore.toFixed(1)})`);

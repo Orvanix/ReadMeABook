@@ -252,6 +252,7 @@ export async function POST(
               status: 'awaiting_approval',
               progress: 0,
               selectedTorrent: selectedEbook as any,
+              customSearchTerms: availableRequest?.customSearchTerms || null,
             },
           });
           logger.info(`Created ebook request ${ebookRequest.id}, awaiting approval`);
@@ -296,6 +297,7 @@ export async function POST(
               parentRequestId: availableRequest?.id || null,
               status: 'searching',
               progress: 0,
+              customSearchTerms: availableRequest?.customSearchTerms || null,
             },
           });
           logger.info(`Created new ebook request ${ebookRequest.id}`);
