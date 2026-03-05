@@ -8,6 +8,7 @@ import {
   deduplicateAudiobooks,
   deduplicateAndCollectGroups,
   normalizeTitle,
+  extractSubtitle,
   areDurationsCompatible,
 } from '@/lib/utils/deduplicate-audiobooks';
 import type { AudibleAudiobook } from '@/lib/integrations/audible.service';
@@ -89,6 +90,32 @@ describe('normalizeTitle', () => {
   it('preserves hyphenated words (not subtitles)', () => {
     // "well-known" has a short dash, not a subtitle separator
     expect(normalizeTitle('A Well-Known Book')).toBe('a well-known book');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// extractSubtitle
+// ---------------------------------------------------------------------------
+
+describe('extractSubtitle', () => {
+  it('extracts subtitle after colon', () => {
+    expect(extractSubtitle('Eden\'s Gate: The Reborn')).toBe('the reborn');
+  });
+
+  it('extracts subtitle after long dash', () => {
+    expect(extractSubtitle('Eden\'s Gate \u2014 The Reborn')).toBe('the reborn');
+  });
+
+  it('returns empty for title without subtitle', () => {
+    expect(extractSubtitle('The Black Prism')).toBe('');
+  });
+
+  it('strips edition markers before extracting', () => {
+    expect(extractSubtitle('The Hobbit (Unabridged): Extended')).toBe('extended');
+  });
+
+  it('returns empty string for empty input', () => {
+    expect(extractSubtitle('')).toBe('');
   });
 });
 
@@ -300,6 +327,27 @@ describe('deduplicateAudiobooks', () => {
       makeBook({ asin: 'A2', title: 'Test Book', author: 'Auth', narrator: undefined, durationMinutes: 302 }),
     ];
     expect(deduplicateAudiobooks(books)).toHaveLength(1);
+  });
+
+  it('does NOT collapse series entries with different subtitles (Eden\'s Gate bug)', () => {
+    // Series format: "Series Name: Book Title" — different books, NOT duplicates
+    const books = [
+      makeBook({ asin: 'A1', title: 'Eden\'s Gate: The Reborn', author: 'Edward Brody', narrator: 'Pavi Proczko', durationMinutes: 510 }),
+      makeBook({ asin: 'A2', title: 'Eden\'s Gate: The Spartan', author: 'Edward Brody', narrator: 'Pavi Proczko', durationMinutes: 540 }),
+      makeBook({ asin: 'A3', title: 'Eden\'s Gate: The Sapper', author: 'Edward Brody', narrator: 'Pavi Proczko', durationMinutes: 600 }),
+    ];
+    const result = deduplicateAudiobooks(books);
+    expect(result).toHaveLength(3); // All 3 are different books!
+  });
+
+  it('still collapses when one has subtitle and other does not', () => {
+    // Same book re-listed: "The Black Prism: Lightbringer, Book 1" vs "The Black Prism"
+    const books = [
+      makeBook({ asin: 'A1', title: 'The Black Prism: Lightbringer, Book 1', author: 'Brent Weeks', narrator: 'Simon Vance', durationMinutes: 1260 }),
+      makeBook({ asin: 'A2', title: 'The Black Prism', author: 'Brent Weeks', narrator: 'Simon Vance', durationMinutes: 1262 }),
+    ];
+    const result = deduplicateAudiobooks(books);
+    expect(result).toHaveLength(1);
   });
 
   it('does not collapse empty-narrator with named narrator', () => {

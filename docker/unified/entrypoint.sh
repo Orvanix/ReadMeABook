@@ -403,12 +403,26 @@ echo "🔄 Running Prisma migrations..."
 cd /app
 su - node -c "cd /app && DATABASE_URL='$DATABASE_URL' npx prisma db push --skip-generate --accept-data-loss" || echo "⚠️  Migrations may have failed, continuing..."
 
-# Run data migrations (idempotent SQL scripts that prisma db push doesn't handle)
+# Run data migrations (run-once SQL scripts tracked in _data_migrations table)
 echo "🔄 Running data migrations..."
+
 for sql_file in /app/prisma/data-migrations/*.sql; do
     if [ -f "$sql_file" ]; then
-        echo "   Running $(basename "$sql_file")..."
-        su - node -c "cd /app && DATABASE_URL='$DATABASE_URL' npx prisma db execute --schema prisma/schema.prisma --file '$sql_file'" || echo "⚠️  Data migration $(basename "$sql_file") may have failed, continuing..."
+        migration_name=$(basename "$sql_file")
+
+        already_run=$(psql "$DATABASE_URL" -tA -c "SELECT 1 FROM _data_migrations WHERE name = '$migration_name' LIMIT 1;")
+        if [ "$already_run" = "1" ]; then
+            echo "   Skipping $migration_name (already executed)"
+            continue
+        fi
+
+        echo "   Running $migration_name..."
+        if su - node -c "cd /app && DATABASE_URL='$DATABASE_URL' npx prisma db execute --schema prisma/schema.prisma --file '$sql_file'"; then
+            psql "$DATABASE_URL" -c "INSERT INTO _data_migrations (name) VALUES ('$migration_name');"
+            echo "   ✅ $migration_name completed"
+        else
+            echo "⚠️  Data migration $migration_name failed, will retry on next start"
+        fi
     fi
 done
 

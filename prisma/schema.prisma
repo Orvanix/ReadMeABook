@@ -718,3 +718,15 @@ model AudibleCacheCategory {
   @@index([categoryId, rank])
   @@map("audible_cache_categories")
 }
+
+// ============================================================================
+// DATA MIGRATION TRACKING
+// Tracks which data migration SQL scripts have been executed (run-once).
+// ============================================================================
+
+model DataMigration {
+  name       String   @id
+  executedAt DateTime @default(now()) @map("executed_at")
+
+  @@map("_data_migrations")
+}

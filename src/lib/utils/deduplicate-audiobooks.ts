@@ -19,7 +19,7 @@ import type { AudibleAudiobook } from '../integrations/audible.service';
 /** Patterns in parentheses or brackets to strip (edition markers, format labels) */
 const EDITION_PAREN_RE = /[([][^)\]]*?(?:unabridged|abridged|edition|remaster(?:ed)?|anniversary|complete|original|version|narrat(?:ed|or)?|audio(?:book)?|full cast|dramatiz(?:ed|ation))[^)\]]*[)\]]/gi;
 
-/** Trailing subtitle after colon or long dash */
+/** Trailing subtitle after colon or long dash (used for extraction, not blind stripping) */
 const SUBTITLE_RE = /\s*[:]\s+.+$/;
 const LONG_DASH_SUBTITLE_RE = /\s+[-\u2013\u2014]\s+.+$/;
 
@@ -42,6 +42,44 @@ export function normalizeTitle(title: string): string {
   t = t.replace(LONG_DASH_SUBTITLE_RE, '');
   // Collapse whitespace and trim
   return t.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Extract the subtitle portion from a title (part after colon or long dash).
+ * Returns empty string if no subtitle found.
+ * Used to prevent false dedup of series books like "Series: Book A" vs "Series: Book B".
+ */
+export function extractSubtitle(title: string): string {
+  let t = title.toLowerCase();
+  // Remove parenthesized/bracketed edition markers first (same as normalizeTitle)
+  t = t.replace(EDITION_PAREN_RE, '');
+  // Remove trailing descriptors
+  t = t.replace(TRAILING_DESCRIPTOR_RE, '');
+  t = t.replace(/\s+/g, ' ').trim();
+
+  // Try colon subtitle
+  const colonMatch = t.match(/\s*[:]\s+(.+)$/);
+  if (colonMatch) return colonMatch[1].trim();
+
+  // Try long dash subtitle
+  const dashMatch = t.match(/\s+[-\u2013\u2014]\s+(.+)$/);
+  if (dashMatch) return dashMatch[1].trim();
+
+  return '';
+}
+
+/**
+ * Check if two titles' subtitles are compatible for dedup purposes.
+ * - Both have no subtitle → compatible
+ * - One has a subtitle, other doesn't → compatible (re-listing with/without subtitle)
+ * - Both have the SAME subtitle → compatible
+ * - Both have DIFFERENT subtitles → NOT compatible (different books, e.g. series entries)
+ */
+function areSubtitlesCompatible(titleA: string, titleB: string): boolean {
+  const subA = extractSubtitle(titleA);
+  const subB = extractSubtitle(titleB);
+  if (!subA || !subB) return true; // one or both missing → compatible
+  return subA === subB;
 }
 
 /** Normalize narrator for comparison. Sorts individual names so order doesn't matter. */
@@ -152,16 +190,20 @@ export function deduplicateAndCollectGroups(books: AudibleAudiobook[]): Deduplic
       continue;
     }
 
-    // Within a title+narrator group, further split by duration compatibility.
-    // Build sub-groups where all members are duration-compatible with the
-    // representative (first member). A book joins the first compatible sub-group.
+    // Within a title+narrator group, further split by duration AND subtitle
+    // compatibility. Build sub-groups where all members are compatible with
+    // the representative (first member). A book joins the first compatible sub-group.
+    // This prevents false dedup of series entries like "Series: Book A" vs "Series: Book B".
     const subGroups: AudibleAudiobook[][] = [];
 
     for (const book of group) {
       let placed = false;
       for (const sg of subGroups) {
-        // Check compatibility against the representative (first member)
-        if (areDurationsCompatible(sg[0].durationMinutes, book.durationMinutes)) {
+        // Check both duration and subtitle compatibility against the representative
+        if (
+          areDurationsCompatible(sg[0].durationMinutes, book.durationMinutes) &&
+          areSubtitlesCompatible(sg[0].title, book.title)
+        ) {
           sg.push(book);
           placed = true;
           break;
