@@ -8,10 +8,12 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import Image from 'next/image';
 import { SeriesDetail } from '@/lib/hooks/useSeries';
 import { WatchSeriesButton } from '@/components/ui/WatchButton';
+
+const PLACEHOLDER_COVER = '/placeholder_cover.svg';
 
 interface SeriesDetailCardProps {
   series: SeriesDetail;
@@ -20,6 +22,7 @@ interface SeriesDetailCardProps {
 
 export function SeriesDetailCard({ series, squareCovers = false }: SeriesDetailCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [coverError, setCoverError] = useState(false);
   const hasLongDescription = (series.description?.length || 0) > 300;
 
   return (
@@ -27,7 +30,7 @@ export function SeriesDetailCard({ series, squareCovers = false }: SeriesDetailC
       {/* Rectangular Cover */}
       <div className="flex-shrink-0">
         <div className={`relative w-36 sm:w-44 lg:w-52 ${squareCovers ? 'aspect-square' : 'aspect-[2/3]'} rounded-xl overflow-hidden shadow-xl shadow-black/20 dark:shadow-black/40`}>
-          {series.books[0]?.coverArtUrl ? (
+          {series.books[0]?.coverArtUrl && !coverError ? (
             <Image
               src={series.books[0].coverArtUrl}
               alt={series.title}
@@ -35,13 +38,16 @@ export function SeriesDetailCard({ series, squareCovers = false }: SeriesDetailC
               className="object-cover"
               sizes="(max-width: 640px) 144px, (max-width: 1024px) 176px, 208px"
               priority
+              onError={() => setCoverError(true)}
             />
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-teal-200 dark:from-emerald-900 dark:to-teal-900 flex items-center justify-center">
-              <svg className="w-1/3 h-1/3 text-emerald-400 dark:text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-              </svg>
-            </div>
+            <Image
+              src={PLACEHOLDER_COVER}
+              alt={series.title}
+              fill
+              className="object-cover"
+              sizes="(max-width: 640px) 144px, (max-width: 1024px) 176px, 208px"
+            />
           )}
         </div>
       </div>

@@ -114,23 +114,13 @@ export function ReportedIssuesSection({ issues }: ReportedIssuesSectionProps) {
                   <div className="flex gap-3">
                     {/* Cover Image */}
                     <div className="flex-shrink-0">
-                      {issue.audiobook.coverArtUrl ? (
-                        <img
-                          src={issue.audiobook.coverArtUrl}
-                          alt={issue.audiobook.title}
-                          className="w-16 h-16 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="w-16 h-16 rounded bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
-                          <svg
-                            className="w-8 h-8 text-gray-400 dark:text-gray-600"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
-                          </svg>
-                        </div>
-                      )}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={issue.audiobook.coverArtUrl || '/placeholder_cover.svg'}
+                        alt={issue.audiobook.title}
+                        className="w-16 h-16 rounded object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder_cover.svg'; }}
+                      />
                     </div>
 
                     {/* Info */}

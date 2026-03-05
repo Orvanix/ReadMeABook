@@ -44,6 +44,7 @@ export function RequestCard({ request, showActions = true }: RequestCardProps) {
   const { squareCovers } = usePreferences();
   const [showError, setShowError] = React.useState(false);
   const [showDetailsModal, setShowDetailsModal] = React.useState(false);
+  const [coverError, setCoverError] = React.useState(false);
 
   const requestType = request.type || 'audiobook';
   const isEbook = requestType === 'ebook';
@@ -98,41 +99,34 @@ export function RequestCard({ request, showActions = true }: RequestCardProps) {
             tabIndex={request.audiobook.audibleAsin ? 0 : undefined}
             onKeyDown={(e) => e.key === 'Enter' && request.audiobook.audibleAsin && setShowDetailsModal(true)}
           >
-            {request.audiobook.coverArtUrl ? (
+            {request.audiobook.coverArtUrl && !coverError ? (
               <Image
                 src={request.audiobook.coverArtUrl}
                 alt={request.audiobook.title}
                 fill
                 className="object-cover"
                 sizes="96px"
+                onError={() => setCoverError(true)}
               />
-            ) : (
+            ) : isEbook ? (
               <div className="w-full h-full flex items-center justify-center">
-                {isEbook ? (
-                  <svg
-                    className="w-12 h-12"
-                    style={{ color: '#f16f19' }}
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M6 2c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6H6zm7 7V3.5L18.5 9H13z" />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-12 h-12 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
-                    />
-                  </svg>
-                )}
+                <svg
+                  className="w-12 h-12"
+                  style={{ color: '#f16f19' }}
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M6 2c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6H6zm7 7V3.5L18.5 9H13z" />
+                </svg>
               </div>
+            ) : (
+              <Image
+                src="/placeholder_cover.svg"
+                alt={request.audiobook.title}
+                fill
+                className="object-cover"
+                sizes="96px"
+              />
             )}
           </div>
         </div>

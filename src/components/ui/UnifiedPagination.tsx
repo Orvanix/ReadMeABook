@@ -2,10 +2,9 @@
  * Component: Unified Pagination — context-aware floating paginator
  * Documentation: documentation/frontend/components.md
  *
- * Replaces two overlapping StickyPagination instances with a single pill
- * that automatically tracks which section dominates the viewport and shows
- * controls for that section. Transitions smoothly when the dominant section
- * changes. Includes a two-dot section indicator for manual switching.
+ * A single floating pill that automatically tracks which section dominates
+ * the viewport and shows pagination controls for that section.
+ * Supports 1-12 sections dynamically with dot indicators for manual switching.
  */
 
 'use client';
@@ -28,7 +27,7 @@ export interface PaginationSection {
 }
 
 interface UnifiedPaginationProps {
-  sections: [PaginationSection, PaginationSection];
+  sections: PaginationSection[];
   footerRef?: React.RefObject<HTMLElement | null>;
 }
 
@@ -92,33 +91,151 @@ function PageJump({ currentPage, totalPages, onPageChange }: PageJumpProps) {
 }
 
 // ---------------------------------------------------------------------------
+// Section indicator dots — scales gracefully from 2-12 sections
+// ---------------------------------------------------------------------------
+
+interface SectionDotsProps {
+  sections: PaginationSection[];
+  activeIndex: number;
+}
+
+/**
+ * For 2-4 sections: simple vertical dot column (original behavior, unchanged).
+ * For 5+ sections: iOS-style compressed window of 5 visible dots.
+ *   - Center slot = active section (full height, accent color)
+ *   - ±1 slots = neighboring sections (medium)
+ *   - ±2 slots = far neighbors (tiny, fade indicator)
+ *   Dots beyond the window are hidden entirely. The window slides as activeIndex changes.
+ */
+function SectionDots({ sections, activeIndex }: SectionDotsProps) {
+  const count = sections.length;
+
+  // ---- Few sections: simple column ----
+  if (count <= 4) {
+    return (
+      <div className="flex flex-col gap-1 pl-2 pr-3">
+        {sections.map((section, idx) => {
+          const isActive = idx === activeIndex;
+          return (
+            <button
+              key={`${section.label}-${idx}`}
+              onClick={() => { if (!isActive) section.onScrollToSection(); }}
+              disabled={isActive}
+              title={section.label}
+              aria-label={`Switch to ${section.label}`}
+              className={`
+                w-1.5 rounded-full transition-all duration-300 ease-out
+                ${isActive
+                  ? `${section.accentColor} h-4 opacity-100`
+                  : 'bg-gray-300 dark:bg-gray-600 h-1.5 opacity-60 hover:opacity-90 hover:scale-110 cursor-pointer'
+                }
+              `}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ---- Many sections: windowed 5-slot strip ----
+  // The window is always 5 slots wide; we clamp it so it doesn't fall off edges.
+  const WINDOW = 5;
+  const half = Math.floor(WINDOW / 2); // 2
+
+  // Ideal window start: center the active dot
+  let windowStart = activeIndex - half;
+  // Clamp so window stays within [0, count - WINDOW]
+  windowStart = Math.max(0, Math.min(windowStart, count - WINDOW));
+  const windowEnd = windowStart + WINDOW - 1; // inclusive
+
+  // Distance from active within the window (for size calculation)
+  // slots: [windowStart, windowStart+1, ..., windowEnd]
+  const slots = Array.from({ length: WINDOW }, (_, i) => windowStart + i);
+
+  // Sizes: index 0 (dist 2 from active) → 2.5px, dist 1 → 4px, dist 0 (active) → 6px
+  const heightForDist = [16, 10, 7, 5, 3]; // px — dist 0..4 (we only use 0-2)
+
+  // Whether we need overflow arrows (dots hidden beyond window edges)
+  const hasHiddenLeft = windowStart > 0;
+  const hasHiddenRight = windowEnd < count - 1;
+
+  return (
+    <div className="flex flex-col items-center gap-0.5 pl-2 pr-3">
+      {/* Top fade indicator */}
+      {hasHiddenLeft && (
+        <div
+          className="w-0.5 rounded-full bg-gray-300 dark:bg-gray-600 opacity-30 flex-shrink-0"
+          style={{ height: '3px' }}
+          aria-hidden="true"
+        />
+      )}
+
+      {slots.map((sectionIdx) => {
+        const section = sections[sectionIdx];
+        const isActive = sectionIdx === activeIndex;
+        const dist = Math.abs(sectionIdx - activeIndex);
+        const h = heightForDist[Math.min(dist, heightForDist.length - 1)];
+
+        // Active dot gets the section's accent color.
+        // Inactive dots: the farther they are, the more faded.
+        const opacityMap = [1, 0.55, 0.3];
+        const opacity = opacityMap[Math.min(dist, opacityMap.length - 1)];
+
+        return (
+          <button
+            key={`${section.label}-${sectionIdx}`}
+            onClick={() => { if (!isActive) section.onScrollToSection(); }}
+            disabled={isActive}
+            title={section.label}
+            aria-label={`Switch to ${section.label}`}
+            style={{ height: `${h}px`, opacity }}
+            className={`
+              w-1.5 rounded-full flex-shrink-0
+              transition-all duration-300 ease-out
+              ${isActive
+                ? `${section.accentColor} cursor-default`
+                : 'bg-gray-400 dark:bg-gray-500 hover:opacity-90 cursor-pointer'
+              }
+            `}
+          />
+        );
+      })}
+
+      {/* Bottom fade indicator */}
+      {hasHiddenRight && (
+        <div
+          className="w-0.5 rounded-full bg-gray-300 dark:bg-gray-600 opacity-30 flex-shrink-0"
+          style={{ height: '3px' }}
+          aria-hidden="true"
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export function UnifiedPagination({ sections, footerRef }: UnifiedPaginationProps) {
-  // Index of the currently dominant section (0 or 1)
-  const [activeIndex, setActiveIndex] = useState<0 | 1>(0);
-  // Whether the label+controls area is mid-transition (drives opacity fade)
+  const [activeIndex, setActiveIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
-
   const [footerVisible, setFooterVisible] = useState(false);
-  // Per-section raw intersection ratios [0,1]
-  const ratiosRef = useRef<[number, number]>([0, 0]);
-  // Whether each section has any meaningful intersection
-  const [sectionVisible, setSectionVisible] = useState<[boolean, boolean]>([false, false]);
+  const ratiosRef = useRef<number[]>(sections.map(() => 0));
+  const [anySectionVisible, setAnySectionVisible] = useState(false);
 
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Determine if the pill should be shown at all:
-  // - at least one section is meaningfully visible
-  // - footer is not visible
-  // - the active section has >1 page
-  const activeSectionHasPages = sections[activeIndex].totalPages > 1;
-  const eitherSectionVisible = sectionVisible[0] || sectionVisible[1];
-  const shouldShow = eitherSectionVisible && !footerVisible && activeSectionHasPages;
+  // Keep ratios array length in sync with sections
+  useEffect(() => {
+    ratiosRef.current = sections.map((_, i) => ratiosRef.current[i] || 0);
+  }, [sections.length]);
+
+  const activeSectionHasPages = sections[activeIndex]?.totalPages > 1;
+  const shouldShow = anySectionVisible && !footerVisible && activeSectionHasPages && sections.length > 0;
 
   // ------------------------------------------------------------------
-  // Track which section each instance belongs to via intersection ratio
+  // Intersection observers for all sections
   // ------------------------------------------------------------------
   useEffect(() => {
     const observers: IntersectionObserver[] = [];
@@ -128,38 +245,31 @@ export function UnifiedPagination({ sections, footerRef }: UnifiedPaginationProp
 
       const observer = new IntersectionObserver(
         ([entry]) => {
-          ratiosRef.current[idx as 0 | 1] = entry.intersectionRatio;
-          const isVisible = entry.isIntersecting && entry.intersectionRatio > 0.05;
+          ratiosRef.current[idx] = entry.intersectionRatio;
+          const anyVisible = ratiosRef.current.some((r) => r > 0.05);
+          setAnySectionVisible(anyVisible);
 
-          setSectionVisible((prev) => {
-            const next: [boolean, boolean] = [...prev] as [boolean, boolean];
-            next[idx as 0 | 1] = isVisible;
-            return next;
-          });
-
-          // Determine dominant section (whichever has more viewport coverage)
-          const [r0, r1] = ratiosRef.current;
-          const dominant: 0 | 1 = r0 >= r1 ? 0 : 1;
+          // Find dominant section
+          let maxRatio = -1;
+          let dominant = 0;
+          for (let i = 0; i < ratiosRef.current.length; i++) {
+            if (ratiosRef.current[i] > maxRatio) {
+              maxRatio = ratiosRef.current[i];
+              dominant = i;
+            }
+          }
 
           setActiveIndex((current) => {
             if (current !== dominant) {
-              // Trigger cross-fade transition
               setIsTransitioning(true);
-
-              if (transitionTimerRef.current) {
-                clearTimeout(transitionTimerRef.current);
-              }
-              transitionTimerRef.current = setTimeout(() => {
-                setIsTransitioning(false);
-              }, 320);
-
+              if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
+              transitionTimerRef.current = setTimeout(() => setIsTransitioning(false), 320);
               return dominant;
             }
             return current;
           });
         },
         {
-          // Dense threshold array gives us smooth ratio tracking
           threshold: Array.from({ length: 21 }, (_, i) => i / 20),
           rootMargin: '-60px 0px -80px 0px',
         }
@@ -173,8 +283,9 @@ export function UnifiedPagination({ sections, footerRef }: UnifiedPaginationProp
       observers.forEach((o) => o.disconnect());
       if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
     };
+    // Re-run when section refs change
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sections[0].sectionRef, sections[1].sectionRef]);
+  }, [sections.map((s) => s.sectionRef.current).join(',')]);
 
   // ------------------------------------------------------------------
   // Footer observer
@@ -190,9 +301,10 @@ export function UnifiedPagination({ sections, footerRef }: UnifiedPaginationProp
   }, [footerRef]);
 
   // ------------------------------------------------------------------
-  // Derived values for the currently active section
+  // Derived values
   // ------------------------------------------------------------------
   const active = sections[activeIndex];
+  if (!active) return null;
 
   const handlePrev = () => {
     if (active.currentPage > 1) active.onPageChange(active.currentPage - 1);
@@ -231,32 +343,14 @@ export function UnifiedPagination({ sections, footerRef }: UnifiedPaginationProp
         "
       >
         {/* Section selector dots — left side */}
-        <div className="flex flex-col gap-1 pl-2 pr-3">
-          {sections.map((section, idx) => {
-            const isActive = idx === activeIndex;
-            return (
-              <button
-                key={section.label}
-                onClick={() => {
-                  if (!isActive) section.onScrollToSection();
-                }}
-                disabled={isActive}
-                title={section.label}
-                aria-label={`Switch to ${section.label}`}
-                className={`
-                  w-1.5 rounded-full transition-all duration-300 ease-out
-                  ${isActive
-                    ? `${section.accentColor} h-4 opacity-100`
-                    : 'bg-gray-300 dark:bg-gray-600 h-1.5 opacity-60 hover:opacity-90 hover:scale-110 cursor-pointer'
-                  }
-                `}
-              />
-            );
-          })}
-        </div>
+        {sections.length > 1 && (
+          <>
+            <SectionDots sections={sections} activeIndex={activeIndex} />
 
-        {/* Divider */}
-        <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mr-3 flex-shrink-0" />
+            {/* Divider */}
+            <div className="w-px h-6 bg-gray-200 dark:bg-white/10 mr-3 flex-shrink-0" />
+          </>
+        )}
 
         {/* Label + controls — cross-fades on section switch */}
         <div
@@ -265,11 +359,10 @@ export function UnifiedPagination({ sections, footerRef }: UnifiedPaginationProp
             transition-opacity duration-200 ease-in-out
             ${isTransitioning ? 'opacity-0' : 'opacity-100'}
           `}
-          // key forces full remount on switch so input state resets cleanly
           key={activeIndex}
         >
           {/* Section label — hidden on small screens */}
-          <span className="hidden sm:block text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap pr-1 select-none">
+          <span className="hidden sm:block text-xs font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap pr-1 select-none max-w-[120px] truncate">
             {active.label}
           </span>
 

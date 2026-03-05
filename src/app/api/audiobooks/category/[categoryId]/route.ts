@@ -1,9 +1,9 @@
 /**
- * Component: Popular Audiobooks API Route
- * Documentation: documentation/integrations/audible.md
+ * Component: Category Audiobooks API Route
+ * Documentation: documentation/features/home-sections.md
  *
- * Serves popular audiobooks from AudibleCacheCategory with real-time library matching.
- * Popular books are stored with categoryId '__popular__' in the unified category table.
+ * Serves audiobooks for a specific Audible category from AudibleCacheCategory,
+ * with the same enrichment pattern as popular/new-releases routes.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -11,49 +11,45 @@ import { prisma } from '@/lib/db';
 import { enrichAudiobooksWithMatches, getAvailableAsins } from '@/lib/utils/audiobook-matcher';
 import { getCurrentUser } from '@/lib/middleware/auth';
 import { RMABLogger } from '@/lib/utils/logger';
-import { POPULAR_CATEGORY_ID } from '@/lib/processors/audible-refresh.processor';
 
-const logger = RMABLogger.create('API.Audiobooks.Popular');
+const logger = RMABLogger.create('API.Audiobooks.Category');
 
 /**
- * GET /api/audiobooks/popular?page=1&limit=20
- * Get popular audiobooks from AudibleCacheCategory with pagination
- *
- * Real-time matching against plex_library determines availability.
+ * GET /api/audiobooks/category/[categoryId]?page=1&limit=20&hideAvailable=false
  */
-export async function GET(request: NextRequest) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ categoryId: string }> }
+) {
   try {
+    const { categoryId } = await params;
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '20', 10);
     const hideAvailable = searchParams.get('hideAvailable') === 'true';
 
-    // Validate pagination parameters
     if (page < 1 || limit < 1 || limit > 100) {
       return NextResponse.json(
-        {
-          error: 'ValidationError',
-          message: 'Invalid pagination parameters. Page must be >= 1 and limit must be between 1 and 100.',
-        },
+        { error: 'ValidationError', message: 'Invalid pagination parameters.' },
         { status: 400 }
       );
     }
 
     const skip = (page - 1) * limit;
 
-    // When hideAvailable is enabled, exclude ASINs that are in the library or have completed requests
+    // Get excluded ASINs when hideAvailable
     let excludedAsins: string[] = [];
     if (hideAvailable) {
       const availableSet = await getAvailableAsins();
       excludedAsins = [...availableSet];
     }
 
-    const whereClause: any = { categoryId: POPULAR_CATEGORY_ID };
+    // Query AudibleCacheCategory joined with AudibleCache
+    const whereClause: any = { categoryId };
     if (excludedAsins.length > 0) {
       whereClause.asin = { notIn: excludedAsins };
     }
 
-    // Query AudibleCacheCategory for popular audiobooks
     const [categoryEntries, totalCount] = await Promise.all([
       prisma.audibleCacheCategory.findMany({
         where: whereClause,
@@ -65,7 +61,6 @@ export async function GET(request: NextRequest) {
       prisma.audibleCacheCategory.count({ where: whereClause }),
     ]);
 
-    // If no data found, return helpful message
     if (totalCount === 0) {
       return NextResponse.json({
         success: true,
@@ -75,7 +70,7 @@ export async function GET(request: NextRequest) {
         page,
         totalPages: 0,
         hasMore: false,
-        message: 'No popular audiobooks found. The Audible data refresh job may need to be run. Please check the Admin Jobs page to enable or trigger the "Audible Data Refresh" job.',
+        message: 'No audiobooks found for this category. Data may not have been refreshed yet.',
       });
     }
 
@@ -129,11 +124,9 @@ export async function GET(request: NextRequest) {
       })
       .filter(Boolean) as any[];
 
-    // Get current user (optional - for request status enrichment)
+    // Enrich with library matching and request status
     const currentUser = getCurrentUser(request);
     const userId = currentUser?.sub || undefined;
-
-    // Enrich with real-time Plex library matching and request status
     const enrichedAudiobooks = await enrichAudiobooksWithMatches(audibleBooks, userId);
 
     const totalPages = Math.ceil(totalCount / limit);
@@ -150,12 +143,11 @@ export async function GET(request: NextRequest) {
       lastSync: cacheEntries[0]?.lastSyncedAt?.toISOString() || null,
     });
   } catch (error) {
-    logger.error('Failed to get popular audiobooks', { error: error instanceof Error ? error.message : String(error) });
+    logger.error('Failed to get category audiobooks', {
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
-      {
-        error: 'FetchError',
-        message: 'Failed to fetch popular audiobooks from database',
-      },
+      { error: 'FetchError', message: 'Failed to fetch category audiobooks' },
       { status: 500 }
     );
   }

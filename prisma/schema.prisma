@@ -72,6 +72,7 @@ model User {
   apiTokens               ApiToken[]  @relation("UserApiTokens")
   watchedSeries           WatchedSeries[]
   watchedAuthors          WatchedAuthor[]
+  homeSections            UserHomeSection[]
 
   @@index([plexId])
   @@index([role])
@@ -98,12 +99,6 @@ model AudibleCache {
   rating          Decimal?  @db.Decimal(3, 2)
   genres          Json      @default("[]")
 
-  // Discovery categories
-  isPopular      Boolean @default(false) @map("is_popular")
-  isNewRelease   Boolean @default(false) @map("is_new_release")
-  popularRank    Int?    @map("popular_rank")
-  newReleaseRank Int?    @map("new_release_rank")
-
   lastSyncedAt DateTime @default(now()) @map("last_synced_at")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
@@ -111,10 +106,6 @@ model AudibleCache {
   @@index([asin])
   @@index([title])
   @@index([author])
-  @@index([isPopular])
-  @@index([isNewRelease])
-  @@index([popularRank])
-  @@index([newReleaseRank])
   @@map("audible_cache")
 }
 
@@ -646,4 +637,50 @@ model WatchedAuthor {
   @@index([userId])
   @@index([authorAsin])
   @@map("watched_authors")
+}
+
+// ============================================================================
+// USER HOME SECTION TABLE
+// Per-user configurable home page sections (popular, new_releases, category)
+// Documentation: documentation/features/home-sections.md
+// ============================================================================
+
+model UserHomeSection {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  sectionType  String   @map("section_type") // 'popular' | 'new_releases' | 'category'
+  categoryId   String?  @map("category_id") // Audible category node ID (only for type 'category')
+  categoryName String?  @map("category_name") // Display name (only for type 'category')
+  sortOrder    Int      @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sectionType, categoryId])
+  @@index([userId])
+  @@index([sortOrder])
+  @@map("user_home_sections")
+}
+
+// ============================================================================
+// AUDIBLE CACHE CATEGORY TABLE
+// Join table linking AudibleCache entries to Audible categories with ranking
+// Documentation: documentation/features/home-sections.md
+// ============================================================================
+
+model AudibleCacheCategory {
+  id           String   @id @default(uuid())
+  asin         String
+  categoryId   String   @map("category_id")
+  rank         Int
+  lastSyncedAt DateTime @default(now()) @map("last_synced_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([asin, categoryId])
+  @@index([categoryId])
+  @@index([asin])
+  @@index([categoryId, rank])
+  @@map("audible_cache_categories")
 }

@@ -24,7 +24,7 @@ export class ThumbnailCacheService {
     try {
       await fs.mkdir(CACHE_DIR, { recursive: true });
     } catch (error) {
-      logger.error('Failed to create cache directory', { error: error instanceof Error ? error.message : String(error) });
+      logger.error(`Failed to create cache directory: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -36,7 +36,7 @@ export class ThumbnailCacheService {
     try {
       await fs.mkdir(LIBRARY_CACHE_DIR, { recursive: true });
     } catch (error) {
-      logger.error('Failed to create library cache directory', { error: error instanceof Error ? error.message : String(error) });
+      logger.error(`Failed to create library cache directory: ${error instanceof Error ? error.message : String(error)}`);
       throw error;
     }
   }
@@ -127,8 +127,8 @@ export class ThumbnailCacheService {
       logger.info(`Cached thumbnail for ${asin}: ${filePath}`);
       return filePath;
     } catch (error) {
-      // Log error but don't throw - we'll fall back to the original URL
-      logger.error(`Failed to cache thumbnail for ${asin}`, { error: error instanceof Error ? error.message : String(error) });
+      // Log warning but don't throw - we'll fall back to the original URL
+      logger.warn(`Failed to cache thumbnail for ${asin}: ${error instanceof Error ? error.message : String(error)} - will use remote URL`);
       return null;
     }
   }
@@ -203,10 +203,8 @@ export class ThumbnailCacheService {
       logger.info(`Cached library thumbnail for ${plexGuid}: ${filePath}`);
       return filePath;
     } catch (error) {
-      // Log error but don't throw - graceful degradation
-      logger.warn(`Failed to cache library thumbnail for ${plexGuid}`, {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      // Log warning but don't throw - graceful degradation
+      logger.warn(`Failed to cache library thumbnail for ${plexGuid}: ${error instanceof Error ? error.message : String(error)}`);
       return null;
     }
   }
@@ -227,7 +225,7 @@ export class ThumbnailCacheService {
         logger.info(`Deleted thumbnail: ${filePath}`);
       }
     } catch (error) {
-      logger.error(`Failed to delete thumbnail for ${asin}`, { error: error instanceof Error ? error.message : String(error) });
+      logger.error(`Failed to delete thumbnail for ${asin}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -258,7 +256,7 @@ export class ThumbnailCacheService {
       logger.info(`Cleanup complete: ${deletedCount} thumbnails deleted`);
       return deletedCount;
     } catch (error) {
-      logger.error('Failed to cleanup thumbnails', { error: error instanceof Error ? error.message : String(error) });
+      logger.error(`Failed to cleanup thumbnails: ${error instanceof Error ? error.message : String(error)}`);
       return 0;
     }
   }
@@ -299,9 +297,7 @@ export class ThumbnailCacheService {
       logger.info(`Library cleanup complete: ${deletedCount} thumbnails deleted`);
       return deletedCount;
     } catch (error) {
-      logger.error('Failed to cleanup library thumbnails', {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      logger.error(`Failed to cleanup library thumbnails: ${error instanceof Error ? error.message : String(error)}`);
       return 0;
     }
   }

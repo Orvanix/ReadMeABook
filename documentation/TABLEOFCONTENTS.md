@@ -77,6 +77,7 @@
 - **Component catalog (cards, badges, forms)** → [frontend/components.md](frontend/components.md)
 - **RequestCard, StatusBadge, ProgressBar** → [frontend/components.md](frontend/components.md)
 - **Pages: home, search, requests, profile** → [frontend/components.md](frontend/components.md)
+- **Home page sections (per-user, configurable)** → [features/home-sections.md](features/home-sections.md)
 
 ## BookDate (AI Recommendations)
 - **AI-powered recommendations, swipe interface** → [features/bookdate.md](features/bookdate.md)
@@ -150,3 +151,6 @@
 **"Why do BookDate library books show placeholders?"** → [features/library-thumbnail-cache.md](features/library-thumbnail-cache.md)
 **"How does file hash matching work?"** → [fixes/file-hash-matching.md](fixes/file-hash-matching.md)
 **"Why is ABS matching the wrong book?"** → [fixes/file-hash-matching.md](fixes/file-hash-matching.md) (file hash prevents false positives)
+**"How do I customize my home page?"** → [features/home-sections.md](features/home-sections.md)
+**"How do Audible categories work?"** → [features/home-sections.md](features/home-sections.md)
+**"How do I add category sections to the home page?"** → [features/home-sections.md](features/home-sections.md)

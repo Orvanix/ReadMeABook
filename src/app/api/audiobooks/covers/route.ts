@@ -2,12 +2,14 @@
  * Component: Audiobook Covers API Route
  * Documentation: documentation/frontend/pages/login.md
  *
- * Serves random popular audiobook covers for login page floating animations
+ * Serves random popular audiobook covers for login page floating animations.
+ * Queries AudibleCacheCategory with '__popular__' categoryId for cover sources.
  */
 
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { RMABLogger } from '@/lib/utils/logger';
+import { POPULAR_CATEGORY_ID } from '@/lib/processors/audible-refresh.processor';
 
 const logger = RMABLogger.create('API.Audiobooks.Covers');
 
@@ -20,18 +22,22 @@ const logger = RMABLogger.create('API.Audiobooks.Covers');
  */
 export async function GET() {
   try {
-    // Fetch all popular audiobooks with covers (up to 200)
+    // Get popular ASINs from category table (up to 200)
+    const categoryEntries = await prisma.audibleCacheCategory.findMany({
+      where: { categoryId: POPULAR_CATEGORY_ID },
+      orderBy: { rank: 'asc' },
+      take: 200,
+      select: { asin: true },
+    });
+
+    const asins = categoryEntries.map((e) => e.asin);
+
+    // Fetch cover data from AudibleCache for popular ASINs with cached covers
     const audiobooks = await prisma.audibleCache.findMany({
       where: {
-        isPopular: true,
-        cachedCoverPath: {
-          not: null,
-        },
+        asin: { in: asins },
+        cachedCoverPath: { not: null },
       },
-      orderBy: {
-        popularRank: 'asc',
-      },
-      take: 200,
       select: {
         asin: true,
         title: true,

@@ -256,6 +256,15 @@ export class AudibleService {
           throw error;
         }
 
+        // Don't retry on deterministic 500 errors (e.g. "Release date is in the future")
+        if (status === 500) {
+          const message = error.response?.data?.message || '';
+          if (message.includes('Release date is in the future')) {
+            logger.info(` External API returned non-retryable error: ${message}`);
+            throw error;
+          }
+        }
+
         // Don't retry on last attempt
         if (attempt === maxRetries) {
           break;
@@ -1170,6 +1179,155 @@ export class AudibleService {
       }
       return null;
     }
+  }
+
+  /**
+   * Get top-level categories from Audible's categories page.
+   * Scrapes {baseUrl}/categories and returns {id, name}[] for top-level nodes.
+   */
+  async getCategories(): Promise<{ id: string; name: string }[]> {
+    await this.initialize();
+
+    logger.info('Fetching Audible categories...');
+
+    try {
+      const { data: response } = await this.fetchWithRetry('/categories', {
+        params: { ipRedirectOverride: 'true' },
+      });
+
+      const $ = cheerio.load(response.data);
+      const categories: { id: string; name: string }[] = [];
+
+      // Top-level category links are in the main categories grid
+      // They follow the pattern /cat/{name}/{nodeId}
+      $('a[href*="/cat/"]').each((_index, element) => {
+        const $el = $(element);
+        const href = $el.attr('href') || '';
+        const match = href.match(/\/cat\/[^\/]+\/(\d+)/);
+        if (!match) return;
+
+        const id = match[1];
+        const name = $el.text().trim();
+
+        if (name && !categories.some((c) => c.id === id)) {
+          categories.push({ id, name });
+        }
+      });
+
+      logger.info(`Found ${categories.length} top-level categories`);
+      return categories;
+    } catch (error) {
+      logger.error('Failed to fetch categories', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Get audiobooks for a specific category using Audible search with node parameter.
+   * Scrapes {baseUrl}/search?node={categoryId}&pageSize=50, up to `limit` results.
+   */
+  async getCategoryBooks(categoryId: string, limit: number = 200): Promise<AudibleAudiobook[]> {
+    await this.initialize();
+
+    logger.info(`Fetching category books for node ${categoryId} (limit: ${limit})...`);
+
+    const audiobooks: AudibleAudiobook[] = [];
+    let page = 1;
+    const maxPages = Math.ceil(limit / AUDIBLE_PAGE_SIZE);
+
+    this.pacer.reset();
+
+    while (audiobooks.length < limit && page <= maxPages) {
+      try {
+        const { data: response, meta } = await this.fetchWithRetry('/search', {
+          params: {
+            ipRedirectOverride: 'true',
+            node: categoryId,
+            pageSize: AUDIBLE_PAGE_SIZE,
+            sort: 'popularity-rank',
+            ...(page > 1 ? { page } : {}),
+          },
+        });
+
+        const $ = cheerio.load(response.data);
+        let foundOnPage = 0;
+
+        // Parse search results — same selectors as search()
+        $('.s-result-item, .productListItem').each((_index, element) => {
+          if (audiobooks.length >= limit) return false;
+          const $el = $(element);
+
+          const asin =
+            $el.find('li').attr('data-asin') ||
+            $el.find('a').attr('href')?.match(/\/(?:pd|ac)\/[^\/]+\/([A-Z0-9]{10})/)?.[1] ||
+            '';
+          if (!asin || audiobooks.some((b) => b.asin === asin)) return;
+
+          const title =
+            $el.find('h2').first().text().trim() ||
+            $el.find('h3 a').text().trim() ||
+            $el.find('.bc-heading a').text().trim();
+
+          const authorLink = $el.find('a[href*="/author/"]').first();
+          const authorText =
+            authorLink.text().trim() ||
+            $el.find('.authorLabel').text().trim();
+          const authorHref = authorLink.attr('href') || '';
+          const authorAsinMatch = authorHref.match(/\/author\/[^\/]+\/([A-Z0-9]{10})/);
+
+          const narratorText =
+            $el.find('a[href*="searchNarrator="]').first().text().trim() ||
+            $el.find('.narratorLabel').text().trim();
+
+          const coverArtUrl = $el.find('img').attr('src') || '';
+
+          const langConfig = this.getLangConfig();
+          const runtimeText =
+            $el.find('.runtimeLabel').text().trim() ||
+            $el.find(buildContainsSelector('span', langConfig.scraping.lengthLabels)).text().trim();
+          const durationMinutes = this.parseRuntime(runtimeText);
+
+          const ratingText =
+            $el.find('.ratingsLabel').text().trim() ||
+            $el.find('.a-icon-star span').first().text().trim();
+          const rating = ratingText ? parseFloat(ratingText.split(' ')[0]) : undefined;
+
+          audiobooks.push({
+            asin,
+            title,
+            author: stripPrefixes(authorText, langConfig.scraping.authorPrefixes),
+            authorAsin: authorAsinMatch?.[1] || undefined,
+            narrator: stripPrefixes(narratorText, langConfig.scraping.narratorPrefixes),
+            coverArtUrl: coverArtUrl.replace(/\._.*_\./, '._SL500_.'),
+            durationMinutes,
+            rating,
+          });
+
+          foundOnPage++;
+        });
+
+        logger.info(`Category ${categoryId}: found ${foundOnPage} books on page ${page}`);
+
+        if (foundOnPage < AUDIBLE_PAGE_SIZE / 2) break;
+
+        page++;
+
+        if (page <= maxPages && audiobooks.length < limit) {
+          await this.delay(this.pacer.reportPageResult(meta));
+        }
+      } catch (error) {
+        logger.error(`Failed to fetch category ${categoryId} page ${page}`, {
+          error: error instanceof Error ? error.message : String(error),
+          collectedSoFar: audiobooks.length,
+        });
+        break;
+      }
+    }
+
+    logger.info(`Category ${categoryId}: collected ${audiobooks.length} books across ${page - 1} pages`);
+    return audiobooks;
   }
 
   /**

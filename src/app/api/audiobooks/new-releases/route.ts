@@ -2,7 +2,8 @@
  * Component: New Releases API Route
  * Documentation: documentation/integrations/audible.md
  *
- * Serves new release audiobooks from audible_cache with real-time Plex matching
+ * Serves new release audiobooks from AudibleCacheCategory with real-time library matching.
+ * New releases are stored with categoryId '__new_releases__' in the unified category table.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -10,12 +11,13 @@ import { prisma } from '@/lib/db';
 import { enrichAudiobooksWithMatches, getAvailableAsins } from '@/lib/utils/audiobook-matcher';
 import { getCurrentUser } from '@/lib/middleware/auth';
 import { RMABLogger } from '@/lib/utils/logger';
+import { NEW_RELEASES_CATEGORY_ID } from '@/lib/processors/audible-refresh.processor';
 
 const logger = RMABLogger.create('API.Audiobooks.NewReleases');
 
 /**
  * GET /api/audiobooks/new-releases?page=1&limit=20
- * Get new release audiobooks from audible_cache with pagination
+ * Get new release audiobooks from AudibleCacheCategory with pagination
  *
  * Real-time matching against plex_library determines availability.
  */
@@ -46,39 +48,21 @@ export async function GET(request: NextRequest) {
       excludedAsins = [...availableSet];
     }
 
-    const whereClause = {
-      isNewRelease: true,
-      ...(excludedAsins.length > 0 ? { asin: { notIn: excludedAsins } } : {}),
-    };
+    const whereClause: any = { categoryId: NEW_RELEASES_CATEGORY_ID };
+    if (excludedAsins.length > 0) {
+      whereClause.asin = { notIn: excludedAsins };
+    }
 
-    // Query audible_cache for new release audiobooks
-    const [audiobooks, totalCount] = await Promise.all([
-      prisma.audibleCache.findMany({
+    // Query AudibleCacheCategory for new release audiobooks
+    const [categoryEntries, totalCount] = await Promise.all([
+      prisma.audibleCacheCategory.findMany({
         where: whereClause,
-        orderBy: {
-          newReleaseRank: 'asc',
-        },
+        orderBy: { rank: 'asc' },
         skip,
         take: limit,
-        select: {
-          id: true,
-          asin: true,
-          title: true,
-          author: true,
-          narrator: true,
-          description: true,
-          coverArtUrl: true,
-          cachedCoverPath: true,
-          durationMinutes: true,
-          releaseDate: true,
-          rating: true,
-          genres: true,
-          lastSyncedAt: true,
-        },
+        select: { asin: true, rank: true },
       }),
-      prisma.audibleCache.count({
-        where: whereClause,
-      }),
+      prisma.audibleCacheCategory.count({ where: whereClause }),
     ]);
 
     // If no data found, return helpful message
@@ -95,29 +79,55 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Transform to matcher input format (uses ASIN as required field)
-    // Use cached cover path when available, otherwise fall back to coverArtUrl
-    const audibleBooks = audiobooks.map((book) => {
-      // Convert cached path to API URL if it exists
-      let coverUrl = book.coverArtUrl || undefined;
-      if (book.cachedCoverPath) {
-        const filename = book.cachedCoverPath.split('/').pop();
-        coverUrl = `/api/cache/thumbnails/${filename}`;
-      }
-
-      return {
-        asin: book.asin,
-        title: book.title,
-        author: book.author,
-        narrator: book.narrator || undefined,
-        description: book.description || undefined,
-        coverArtUrl: coverUrl,
-        durationMinutes: book.durationMinutes || undefined,
-        releaseDate: book.releaseDate?.toISOString() || undefined,
-        rating: book.rating ? parseFloat(book.rating.toString()) : undefined,
-        genres: (book.genres as string[]) || [],
-      };
+    // Fetch full metadata from AudibleCache for these ASINs
+    const asins = categoryEntries.map((e) => e.asin);
+    const cacheEntries = await prisma.audibleCache.findMany({
+      where: { asin: { in: asins } },
+      select: {
+        asin: true,
+        title: true,
+        author: true,
+        narrator: true,
+        description: true,
+        coverArtUrl: true,
+        cachedCoverPath: true,
+        durationMinutes: true,
+        releaseDate: true,
+        rating: true,
+        genres: true,
+        lastSyncedAt: true,
+      },
     });
+
+    // Build a map for ordering by rank
+    const cacheMap = new Map(cacheEntries.map((e) => [e.asin, e]));
+
+    // Transform to matcher input format, preserving rank order
+    const audibleBooks = categoryEntries
+      .map((entry) => {
+        const book = cacheMap.get(entry.asin);
+        if (!book) return null;
+
+        let coverUrl = book.coverArtUrl || undefined;
+        if (book.cachedCoverPath) {
+          const filename = book.cachedCoverPath.split('/').pop();
+          coverUrl = `/api/cache/thumbnails/${filename}`;
+        }
+
+        return {
+          asin: book.asin,
+          title: book.title,
+          author: book.author,
+          narrator: book.narrator || undefined,
+          description: book.description || undefined,
+          coverArtUrl: coverUrl,
+          durationMinutes: book.durationMinutes || undefined,
+          releaseDate: book.releaseDate?.toISOString() || undefined,
+          rating: book.rating ? parseFloat(book.rating.toString()) : undefined,
+          genres: (book.genres as string[]) || [],
+        };
+      })
+      .filter(Boolean) as any[];
 
     // Get current user (optional - for request status enrichment)
     const currentUser = getCurrentUser(request);
@@ -137,7 +147,7 @@ export async function GET(request: NextRequest) {
       page,
       totalPages,
       hasMore,
-      lastSync: audiobooks[0]?.lastSyncedAt?.toISOString() || null,
+      lastSync: cacheEntries[0]?.lastSyncedAt?.toISOString() || null,
     });
   } catch (error) {
     logger.error('Failed to get new releases', { error: error instanceof Error ? error.message : String(error) });

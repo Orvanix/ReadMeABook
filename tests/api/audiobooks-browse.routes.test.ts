@@ -68,6 +68,12 @@ describe('Audiobooks browse routes', () => {
   });
 
   it('returns popular audiobooks with cached cover URLs', async () => {
+    // Mock AudibleCacheCategory query (popular route now queries category table)
+    prismaMock.audibleCacheCategory.findMany.mockResolvedValueOnce([
+      { asin: 'ASIN', rank: 1 },
+    ]);
+    prismaMock.audibleCacheCategory.count.mockResolvedValueOnce(1);
+    // Mock AudibleCache metadata fetch
     prismaMock.audibleCache.findMany.mockResolvedValueOnce([
       {
         asin: 'ASIN',
@@ -84,7 +90,6 @@ describe('Audiobooks browse routes', () => {
         lastSyncedAt: new Date(),
       },
     ]);
-    prismaMock.audibleCache.count.mockResolvedValueOnce(1);
     enrichMock.mockResolvedValueOnce([{ asin: 'ASIN', coverArtUrl: '/api/cache/thumbnails/asin.jpg' }]);
 
     const { GET } = await import('@/app/api/audiobooks/popular/route');
@@ -106,8 +111,9 @@ describe('Audiobooks browse routes', () => {
   });
 
   it('returns new release audiobooks', async () => {
-    prismaMock.audibleCache.findMany.mockResolvedValueOnce([]);
-    prismaMock.audibleCache.count.mockResolvedValueOnce(0);
+    // Mock AudibleCacheCategory query (new-releases route now queries category table)
+    prismaMock.audibleCacheCategory.findMany.mockResolvedValueOnce([]);
+    prismaMock.audibleCacheCategory.count.mockResolvedValueOnce(0);
 
     const { GET } = await import('@/app/api/audiobooks/new-releases/route');
     const response = await GET({ nextUrl: new URL('http://app/api/audiobooks/new-releases?page=1&limit=1') } as any);
@@ -118,6 +124,12 @@ describe('Audiobooks browse routes', () => {
   });
 
   it('enriches new releases and uses cached cover URLs', async () => {
+    // Mock AudibleCacheCategory query
+    prismaMock.audibleCacheCategory.findMany.mockResolvedValueOnce([
+      { asin: 'ASIN', rank: 1 },
+    ]);
+    prismaMock.audibleCacheCategory.count.mockResolvedValueOnce(1);
+    // Mock AudibleCache metadata fetch
     prismaMock.audibleCache.findMany.mockResolvedValueOnce([
       {
         asin: 'ASIN',
@@ -134,7 +146,6 @@ describe('Audiobooks browse routes', () => {
         lastSyncedAt: new Date('2024-01-02'),
       },
     ]);
-    prismaMock.audibleCache.count.mockResolvedValueOnce(1);
     currentUserMock.mockReturnValue({ sub: 'user-1' });
     enrichMock.mockResolvedValueOnce([{ asin: 'ASIN', available: true }]);
 
@@ -155,7 +166,7 @@ describe('Audiobooks browse routes', () => {
   });
 
   it('returns 500 when new releases query fails', async () => {
-    prismaMock.audibleCache.findMany.mockRejectedValueOnce(new Error('db down'));
+    prismaMock.audibleCacheCategory.findMany.mockRejectedValueOnce(new Error('db down'));
 
     const { GET } = await import('@/app/api/audiobooks/new-releases/route');
     const response = await GET({ nextUrl: new URL('http://app/api/audiobooks/new-releases?page=1&limit=1') } as any);
@@ -209,6 +220,11 @@ describe('Audiobooks browse routes', () => {
   });
 
   it('returns cached covers for login', async () => {
+    // Mock AudibleCacheCategory query (covers route now queries category table)
+    prismaMock.audibleCacheCategory.findMany.mockResolvedValueOnce([
+      { asin: 'ASIN' },
+    ]);
+    // Mock AudibleCache metadata fetch
     prismaMock.audibleCache.findMany.mockResolvedValueOnce([
       { asin: 'ASIN', title: 'Title', author: 'Author', cachedCoverPath: '/tmp/asin.jpg', coverArtUrl: null },
     ]);
@@ -221,5 +237,3 @@ describe('Audiobooks browse routes', () => {
     expect(payload.covers[0].coverUrl).toBe('/api/cache/thumbnails/asin.jpg');
   });
 });
-
-

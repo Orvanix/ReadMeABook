@@ -2,11 +2,17 @@
  * Component: Audible Refresh Processor
  * Documentation: documentation/backend/services/scheduler.md
  *
- * Fetches popular and new release audiobooks from Audible and caches them
+ * Fetches popular, new release, and category audiobooks from Audible and caches them.
+ * All section data is stored uniformly in AudibleCacheCategory with reserved IDs
+ * '__popular__' and '__new_releases__' for built-in sections.
  */
 
 import { prisma } from '../db';
 import { RMABLogger } from '../utils/logger';
+
+/** Reserved category IDs for built-in home sections */
+export const POPULAR_CATEGORY_ID = '__popular__';
+export const NEW_RELEASES_CATEGORY_ID = '__new_releases__';
 
 export interface AudibleRefreshPayload {
   jobId?: string;
@@ -25,22 +31,7 @@ export async function processAudibleRefresh(payload: AudibleRefreshPayload): Pro
   const thumbnailCache = getThumbnailCacheService();
 
   try {
-    // Clear previous popular/new-release flags for fresh data
-    await prisma.audibleCache.updateMany({
-      where: {
-        OR: [
-          { isPopular: true },
-          { isNewRelease: true },
-        ],
-      },
-      data: {
-        isPopular: false,
-        isNewRelease: false,
-        popularRank: null,
-        newReleaseRank: null,
-      },
-    });
-    logger.info('Cleared previous popular/new-release flags in audible_cache');
+    const syncTime = new Date();
 
     // Fetch popular and new releases - 200 items each
     const popular = await audibleService.getPopularAudiobooks(200);
@@ -54,112 +45,62 @@ export async function processAudibleRefresh(payload: AudibleRefreshPayload): Pro
 
     logger.info(`Fetched ${popular.length} popular, ${newReleases.length} new releases from Audible`);
 
-    // Persist to audible_cache
-    let popularSaved = 0;
-    let newReleasesSaved = 0;
-    const syncTime = new Date();
+    // Persist popular audiobooks via AudibleCacheCategory
+    const popularSaved = await persistSectionBooks(
+      popular, POPULAR_CATEGORY_ID, syncTime, thumbnailCache, logger, 'popular audiobook'
+    );
 
-    for (let i = 0; i < popular.length; i++) {
-      const audiobook = popular[i];
-      try {
-        // Cache thumbnail if coverArtUrl exists
-        let cachedCoverPath: string | null = null;
-        if (audiobook.coverArtUrl) {
-          cachedCoverPath = await thumbnailCache.cacheThumbnail(audiobook.asin, audiobook.coverArtUrl);
+    // Persist new releases via AudibleCacheCategory
+    const newReleasesSaved = await persistSectionBooks(
+      newReleases, NEW_RELEASES_CATEGORY_ID, syncTime, thumbnailCache, logger, 'new release'
+    );
+
+    logger.info(`Saved ${popularSaved} popular and ${newReleasesSaved} new releases`);
+
+    // --- Category scraping ---
+    // Query distinct categoryIds from all users' home sections
+    let categoriesSynced = 0;
+    try {
+      const categorySections = await prisma.userHomeSection.findMany({
+        where: { sectionType: 'category', categoryId: { not: null } },
+        select: { categoryId: true },
+        distinct: ['categoryId'],
+      });
+
+      const categoryIds = categorySections
+        .map((s) => s.categoryId)
+        .filter((id): id is string => id !== null);
+
+      if (categoryIds.length > 0) {
+        logger.info(`Refreshing ${categoryIds.length} user-configured categories...`);
+
+        for (const catId of categoryIds) {
+          try {
+            // Batch cooldown between categories
+            const catCooldownMs = 10000 + Math.floor(Math.random() * 10000);
+            logger.info(`Category cooldown: waiting ${Math.round(catCooldownMs / 1000)}s before category ${catId}...`);
+            await new Promise(resolve => setTimeout(resolve, catCooldownMs));
+
+            // Scrape category books
+            const books = await audibleService.getCategoryBooks(catId, 200);
+            logger.info(`Category ${catId}: fetched ${books.length} books`);
+
+            const saved = await persistSectionBooks(
+              books, catId, syncTime, thumbnailCache, logger, 'category book'
+            );
+
+            categoriesSynced++;
+            logger.info(`Category ${catId}: saved ${saved} entries`);
+          } catch (error) {
+            logger.error(`Failed to refresh category ${catId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
         }
 
-        await prisma.audibleCache.upsert({
-          where: { asin: audiobook.asin },
-          create: {
-            asin: audiobook.asin,
-            title: audiobook.title,
-            author: audiobook.author,
-            narrator: audiobook.narrator,
-            description: audiobook.description,
-            coverArtUrl: audiobook.coverArtUrl,
-            cachedCoverPath: cachedCoverPath,
-            durationMinutes: audiobook.durationMinutes,
-            releaseDate: audiobook.releaseDate ? new Date(audiobook.releaseDate) : null,
-            rating: audiobook.rating ? audiobook.rating : null,
-            genres: audiobook.genres || [],
-            isPopular: true,
-            popularRank: i + 1,
-            lastSyncedAt: syncTime,
-          },
-          update: {
-            title: audiobook.title,
-            author: audiobook.author,
-            narrator: audiobook.narrator,
-            description: audiobook.description,
-            coverArtUrl: audiobook.coverArtUrl,
-            cachedCoverPath: cachedCoverPath,
-            durationMinutes: audiobook.durationMinutes,
-            releaseDate: audiobook.releaseDate ? new Date(audiobook.releaseDate) : null,
-            rating: audiobook.rating ? audiobook.rating : null,
-            genres: audiobook.genres || [],
-            isPopular: true,
-            popularRank: i + 1,
-            lastSyncedAt: syncTime,
-          },
-        });
-
-        popularSaved++;
-      } catch (error) {
-        logger.error(`Failed to save popular audiobook ${audiobook.title}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        logger.info(`Category refresh complete: ${categoriesSynced}/${categoryIds.length} categories synced`);
       }
+    } catch (error) {
+      logger.error(`Category refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-
-    for (let i = 0; i < newReleases.length; i++) {
-      const audiobook = newReleases[i];
-      try {
-        // Cache thumbnail if coverArtUrl exists
-        let cachedCoverPath: string | null = null;
-        if (audiobook.coverArtUrl) {
-          cachedCoverPath = await thumbnailCache.cacheThumbnail(audiobook.asin, audiobook.coverArtUrl);
-        }
-
-        await prisma.audibleCache.upsert({
-          where: { asin: audiobook.asin },
-          create: {
-            asin: audiobook.asin,
-            title: audiobook.title,
-            author: audiobook.author,
-            narrator: audiobook.narrator,
-            description: audiobook.description,
-            coverArtUrl: audiobook.coverArtUrl,
-            cachedCoverPath: cachedCoverPath,
-            durationMinutes: audiobook.durationMinutes,
-            releaseDate: audiobook.releaseDate ? new Date(audiobook.releaseDate) : null,
-            rating: audiobook.rating ? audiobook.rating : null,
-            genres: audiobook.genres || [],
-            isNewRelease: true,
-            newReleaseRank: i + 1,
-            lastSyncedAt: syncTime,
-          },
-          update: {
-            title: audiobook.title,
-            author: audiobook.author,
-            narrator: audiobook.narrator,
-            description: audiobook.description,
-            coverArtUrl: audiobook.coverArtUrl,
-            cachedCoverPath: cachedCoverPath,
-            durationMinutes: audiobook.durationMinutes,
-            releaseDate: audiobook.releaseDate ? new Date(audiobook.releaseDate) : null,
-            rating: audiobook.rating ? audiobook.rating : null,
-            genres: audiobook.genres || [],
-            isNewRelease: true,
-            newReleaseRank: i + 1,
-            lastSyncedAt: syncTime,
-          },
-        });
-
-        newReleasesSaved++;
-      } catch (error) {
-        logger.error(`Failed to save new release ${audiobook.title}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-
-    logger.info(`Saved ${popularSaved} popular and ${newReleasesSaved} new releases to audible_cache`);
 
     // Cleanup unused thumbnails
     logger.info('Cleaning up unused thumbnails...');
@@ -175,10 +116,95 @@ export async function processAudibleRefresh(payload: AudibleRefreshPayload): Pro
       message: 'Audible refresh completed',
       popularSaved,
       newReleasesSaved,
+      categoriesSynced,
       thumbnailsDeleted: deletedCount,
     };
   } catch (error) {
     logger.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     throw error;
   }
+}
+
+/**
+ * Wipe previous entries for a category, upsert book metadata into AudibleCache,
+ * and insert ranked entries into AudibleCacheCategory.
+ * Returns the number of books successfully saved.
+ */
+async function persistSectionBooks(
+  books: any[],
+  categoryId: string,
+  syncTime: Date,
+  thumbnailCache: { cacheThumbnail: (asin: string, url: string) => Promise<string | null> },
+  logger: ReturnType<typeof RMABLogger.forJob>,
+  labelForErrors: string,
+): Promise<number> {
+  // Wipe previous entries for this section
+  logger.info(`Clearing previous data for ${categoryId}...`);
+  await prisma.audibleCacheCategory.deleteMany({
+    where: { categoryId },
+  });
+  logger.info(`Cleared previous entries for ${categoryId}, saving ${books.length} books...`);
+
+  let saved = 0;
+  for (let i = 0; i < books.length; i++) {
+    const book = books[i];
+    try {
+      // Cache thumbnail if coverArtUrl exists
+      let cachedCoverPath: string | null = null;
+      if (book.coverArtUrl) {
+        cachedCoverPath = await thumbnailCache.cacheThumbnail(book.asin, book.coverArtUrl);
+        if (!cachedCoverPath) {
+          logger.warn(`Cover cache failed for "${book.title}" (${book.asin}) - falling back to remote URL`);
+        }
+      }
+
+      // Upsert book metadata into AudibleCache
+      await prisma.audibleCache.upsert({
+        where: { asin: book.asin },
+        create: {
+          asin: book.asin,
+          title: book.title,
+          author: book.author,
+          narrator: book.narrator,
+          description: book.description,
+          coverArtUrl: book.coverArtUrl,
+          cachedCoverPath,
+          durationMinutes: book.durationMinutes,
+          releaseDate: book.releaseDate ? new Date(book.releaseDate) : null,
+          rating: book.rating ? book.rating : null,
+          genres: book.genres || [],
+          lastSyncedAt: syncTime,
+        },
+        update: {
+          title: book.title,
+          author: book.author,
+          narrator: book.narrator,
+          description: book.description,
+          coverArtUrl: book.coverArtUrl,
+          cachedCoverPath,
+          durationMinutes: book.durationMinutes,
+          releaseDate: book.releaseDate ? new Date(book.releaseDate) : null,
+          rating: book.rating ? book.rating : null,
+          genres: book.genres || [],
+          lastSyncedAt: syncTime,
+        },
+      });
+
+      // Insert ranked entry into AudibleCacheCategory
+      await prisma.audibleCacheCategory.create({
+        data: {
+          asin: book.asin,
+          categoryId,
+          rank: i + 1,
+          lastSyncedAt: syncTime,
+        },
+      });
+
+      saved++;
+    } catch (error) {
+      logger.error(`Failed to save ${labelForErrors} ${book.title}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  return saved;
 }

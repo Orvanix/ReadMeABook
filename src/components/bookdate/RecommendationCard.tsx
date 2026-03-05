@@ -27,6 +27,7 @@ export function RecommendationCard({
   isDraggable = true,
 }: RecommendationCardProps) {
   const [showToast, setShowToast] = useState(false);
+  const [coverError, setCoverError] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
 
@@ -227,7 +228,7 @@ export function RecommendationCard({
 
         {/* Cover image - smaller on mobile to fit all content */}
         <div className="w-full relative bg-gray-200 dark:bg-gray-700 flex-shrink-0" style={{ maxHeight: 'min(25vh, 300px)' }}>
-          {recommendation.coverUrl ? (
+          {recommendation.coverUrl && !coverError ? (
             <Image
               src={recommendation.coverUrl}
               alt={recommendation.title}
@@ -236,11 +237,17 @@ export function RecommendationCard({
               className="object-contain w-full h-auto"
               style={{ maxHeight: 'min(25vh, 300px)' }}
               unoptimized
+              onError={() => setCoverError(true)}
             />
           ) : (
-            <div className="w-full h-48 flex items-center justify-center">
-              <span className="text-6xl">📚</span>
-            </div>
+            <Image
+              src="/placeholder_cover.svg"
+              alt={recommendation.title}
+              width={400}
+              height={400}
+              className="object-contain w-full h-auto"
+              style={{ maxHeight: 'min(25vh, 300px)' }}
+            />
           )}
         </div>
 

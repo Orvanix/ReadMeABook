@@ -96,6 +96,7 @@ export function AudiobookDetailsModal({
   const [asinCopied, setAsinCopied] = useState(false);
   const [localRequestStatus, setLocalRequestStatus] = useState<string | null>(requestStatus ?? null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [coverError, setCoverError] = useState(false);
 
   // Sync local status when the prop changes (e.g. page data refreshes)
   useEffect(() => {
@@ -287,7 +288,7 @@ export function AudiobookDetailsModal({
                     ${squareCovers ? 'w-40 sm:w-44 lg:w-52 aspect-square' : 'w-32 sm:w-40 lg:w-48 aspect-[2/3]'}
                     ${status.type === 'available' ? 'ring-2 ring-emerald-400/60' : ''}
                   `}>
-                    {audiobook.coverArtUrl ? (
+                    {audiobook.coverArtUrl && !coverError ? (
                       <Image
                         src={audiobook.coverArtUrl}
                         alt=""
@@ -295,13 +296,16 @@ export function AudiobookDetailsModal({
                         className="object-cover"
                         sizes="200px"
                         priority
+                        onError={() => setCoverError(true)}
                       />
                     ) : (
-                      <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
-                        <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                        </svg>
-                      </div>
+                      <Image
+                        src="/placeholder_cover.svg"
+                        alt=""
+                        fill
+                        className="object-cover"
+                        sizes="200px"
+                      />
                     )}
 
                     {/* Rating Badge */}

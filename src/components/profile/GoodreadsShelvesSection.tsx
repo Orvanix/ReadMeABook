@@ -333,12 +333,14 @@ function CoverStack({
           onClick={() => book.asin && onBookClick(book.asin)}
           title={book.asin ? `${book.title}${book.author ? ` by ${book.author}` : ''}` : undefined}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={book.coverUrl}
+            src={book.coverUrl || '/placeholder_cover.svg'}
             alt=""
             className="w-full h-full object-cover"
             loading="lazy"
             draggable={false}
+            onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder_cover.svg'; }}
           />
         </div>
       ))}

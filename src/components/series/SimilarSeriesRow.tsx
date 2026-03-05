@@ -97,21 +97,14 @@ export function SimilarSeriesRow({ series, currentSeriesTitle, squareCovers = fa
             >
               {/* Cover */}
               <div className={`relative w-20 ${squareCovers ? 'h-20 sm:w-24 sm:h-24' : 'h-[120px] sm:w-24 sm:h-36'} rounded-lg overflow-hidden shadow-md shadow-black/15 dark:shadow-black/30 group-hover/card:shadow-lg group-hover/card:scale-[1.04] group-hover/card:-translate-y-0.5 transition-all duration-300`}>
-                {s.coverArtUrl ? (
-                  <Image
-                    src={s.coverArtUrl}
-                    alt=""
-                    fill
-                    className="object-cover"
-                    sizes="96px"
-                  />
-                ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-teal-200 dark:from-emerald-900 dark:to-teal-900 flex items-center justify-center">
-                    <span className="text-lg font-bold text-emerald-400 dark:text-emerald-300">
-                      {s.title.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                )}
+                <Image
+                  src={s.coverArtUrl || '/placeholder_cover.svg'}
+                  alt=""
+                  fill
+                  className="object-cover"
+                  sizes="96px"
+                  onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder_cover.svg'; }}
+                />
               </div>
 
               {/* Title */}

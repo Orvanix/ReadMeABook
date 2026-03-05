@@ -250,10 +250,12 @@ export function BookPickerModal({
                     {/* Cover Image or Text Placeholder */}
                     <div className="absolute inset-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-gray-700 dark:to-gray-600">
                       {book.coverUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img
                           src={book.coverUrl}
                           alt={book.title}
                           className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder_cover.svg'; }}
                         />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center p-3">

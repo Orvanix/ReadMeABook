@@ -486,6 +486,7 @@ function LoginContent() {
                       quality={70}
                       priority={index < 10}
                       loading={index < 10 ? 'eager' : 'lazy'}
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder_cover.svg'; }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                   </div>

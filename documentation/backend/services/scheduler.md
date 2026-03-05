@@ -129,10 +129,10 @@ interface ScheduledJob {
 ## Audible Refresh Processor
 
 **Implementation:**
-1. Clear previous `isPopular`/`isNewRelease` flags
-2. Fetch 200 popular + 200 new releases (multi-page scraping)
-3. Download and cache cover thumbnails locally (stored in `/app/cache/thumbnails`)
-4. Store/update in DB with category flags, rankings (`popularRank`, `newReleaseRank`), and cached cover paths
+1. Fetch 200 popular + 200 new releases (multi-page scraping)
+2. Download and cache cover thumbnails locally (stored in `/app/cache/thumbnails`)
+3. Wipe and re-populate `AudibleCacheCategory` entries with reserved IDs (`__popular__`, `__new_releases__`) and user-configured category IDs
+4. Upsert book metadata in `AudibleCache`, ranked entries in `AudibleCacheCategory`
 5. Record sync timestamp (`lastAudibleSync`)
 6. Clean up unused thumbnails (removes covers for audiobooks no longer in cache)
 7. Perform fuzzy matching (70% threshold) against Plex library

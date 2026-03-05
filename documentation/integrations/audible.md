@@ -128,11 +128,11 @@ Single matching algorithm used everywhere (search, popular, new-releases, jobs).
 Discovery APIs serve cached data from DB with real-time matching.
 
 **Flow:**
-1. `audible_refresh` job runs daily → fetches 200 popular + 200 new releases
+1. `audible_refresh` job runs daily → fetches 200 popular + 200 new releases + user-configured categories
 2. Downloads and caches cover thumbnails locally (reduces Audible load)
-3. Stores in DB with flags (`isPopular`, `isNewRelease`) and rankings
+3. Stores metadata in `audible_cache`, ranked entries in `audible_cache_categories` with reserved IDs (`__popular__`, `__new_releases__`) and user category IDs
 4. Cleans up unused thumbnails after sync
-5. API routes query DB → apply real-time matching → return enriched results
+5. API routes query `AudibleCacheCategory` by categoryId → join with `AudibleCache` metadata → apply real-time matching → return enriched results
 6. Homepage loads instantly (no Audible API hits)
 
 ## Thumbnail Caching

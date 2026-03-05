@@ -9,7 +9,7 @@
 
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { SeriesSummary } from '@/lib/hooks/useSeries';
@@ -20,6 +20,7 @@ interface SeriesCardProps {
 }
 
 export function SeriesCard({ series, squareCovers = false }: SeriesCardProps) {
+  const [coverError, setCoverError] = useState(false);
   const visibleTags = series.tags.slice(0, 2);
   const hasTags = visibleTags.length > 0;
   const hasRating = series.rating != null && series.rating > 0;
@@ -42,30 +43,23 @@ export function SeriesCard({ series, squareCovers = false }: SeriesCardProps) {
         `}
       >
         {/* Cover Art or Fallback */}
-        {series.coverArtUrl ? (
+        {series.coverArtUrl && !coverError ? (
           <Image
             src={series.coverArtUrl}
             alt=""
             fill
             className="object-cover"
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            onError={() => setCoverError(true)}
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 to-teal-800 dark:from-emerald-700 dark:to-teal-900 flex items-center justify-center">
-            <svg
-              className="w-1/3 h-1/3 text-white/40"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.2}
-                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
-              />
-            </svg>
-          </div>
+          <Image
+            src="/placeholder_cover.svg"
+            alt=""
+            fill
+            className="object-cover"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+          />
         )}
 
         {/* Top-row badges — Rating (left) + Book count (right) */}

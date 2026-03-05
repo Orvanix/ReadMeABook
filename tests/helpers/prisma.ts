@@ -10,6 +10,7 @@ type PrismaModelMock = {
   findFirst: ReturnType<typeof vi.fn>;
   findUnique: ReturnType<typeof vi.fn>;
   create: ReturnType<typeof vi.fn>;
+  createMany: ReturnType<typeof vi.fn>;
   update: ReturnType<typeof vi.fn>;
   updateMany: ReturnType<typeof vi.fn>;
   upsert: ReturnType<typeof vi.fn>;
@@ -23,6 +24,7 @@ const createModelMock = (): PrismaModelMock => ({
   findFirst: vi.fn(),
   findUnique: vi.fn(),
   create: vi.fn(() => Promise.resolve({})),
+  createMany: vi.fn(() => Promise.resolve({ count: 0 })),
   update: vi.fn(() => Promise.resolve({})),
   updateMany: vi.fn(() => Promise.resolve({})),
   upsert: vi.fn(() => Promise.resolve({})),
@@ -52,6 +54,9 @@ export const createPrismaMock = () => ({
   workAsin: createModelMock(),
   watchedSeries: createModelMock(),
   watchedAuthor: createModelMock(),
+  userHomeSection: createModelMock(),
+  audibleCacheCategory: createModelMock(),
   $queryRaw: vi.fn(),
+  $transaction: vi.fn(),
   $disconnect: vi.fn(),
 });

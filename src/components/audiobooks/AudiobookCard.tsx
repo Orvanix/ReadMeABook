@@ -46,6 +46,8 @@ const getStatusConfig = (audiobook: Audiobook) => {
   return null;
 };
 
+const PLACEHOLDER_COVER = '/placeholder_cover.svg';
+
 export function AudiobookCard({
   audiobook,
   onRequestSuccess,
@@ -57,6 +59,7 @@ export function AudiobookCard({
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [localRequestStatus, setLocalRequestStatus] = useState<string | undefined>(undefined);
+  const [coverError, setCoverError] = useState(false);
 
   // Build a display-only audiobook with the local status override
   const displayAudiobook = localRequestStatus !== undefined
@@ -113,20 +116,23 @@ export function AudiobookCard({
             `}
           >
             {/* Cover Art */}
-            {audiobook.coverArtUrl ? (
+            {audiobook.coverArtUrl && !coverError ? (
               <Image
                 src={audiobook.coverArtUrl}
                 alt=""
                 fill
                 className="object-cover"
                 sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                onError={() => setCoverError(true)}
               />
             ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
-                <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                </svg>
-              </div>
+              <Image
+                src={PLACEHOLDER_COVER}
+                alt=""
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+              />
             )}
 
             {/* Hover Overlay with Actions - Desktop Only

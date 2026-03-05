@@ -1,6 +1,6 @@
 /**
  * Component: Home Page Tests
- * Documentation: documentation/frontend/components.md
+ * Documentation: documentation/features/home-sections.md
  */
 
 // @vitest-environment jsdom
@@ -12,13 +12,24 @@ import { resetMockAuthState } from '../helpers/mock-auth';
 import { resetMockRouter } from '../helpers/mock-next-navigation';
 
 const useAudiobooksMock = vi.hoisted(() => vi.fn());
+const useCategoryAudiobooksMock = vi.hoisted(() => vi.fn());
+const useHomeSectionsMock = vi.hoisted(() => vi.fn());
 const usePreferencesMock = vi.hoisted(() => ({
   cardSize: 5,
   setCardSize: vi.fn(),
+  squareCovers: false,
+  setSquareCovers: vi.fn(),
+  hideAvailable: false,
+  setHideAvailable: vi.fn(),
 }));
 
 vi.mock('@/lib/hooks/useAudiobooks', () => ({
   useAudiobooks: useAudiobooksMock,
+}));
+
+vi.mock('@/lib/hooks/useHomeSections', () => ({
+  useHomeSections: useHomeSectionsMock,
+  useCategoryAudiobooks: useCategoryAudiobooksMock,
 }));
 
 vi.mock('@/contexts/PreferencesContext', () => ({
@@ -71,9 +82,25 @@ describe('HomePage', () => {
     resetMockAuthState();
     resetMockRouter();
     useAudiobooksMock.mockReset();
+    useCategoryAudiobooksMock.mockReset();
+    useHomeSectionsMock.mockReset();
     usePreferencesMock.cardSize = 5;
     usePreferencesMock.setCardSize.mockReset();
+    usePreferencesMock.hideAvailable = false;
     vi.resetModules();
+
+    // Default: return popular + new_releases sections
+    useHomeSectionsMock.mockReturnValue({
+      sections: [
+        { id: '1', sectionType: 'popular', categoryId: null, categoryName: null, sortOrder: 0 },
+        { id: '2', sectionType: 'new_releases', categoryId: null, categoryName: null, sortOrder: 1 },
+      ],
+      isLoading: false,
+      nextRefresh: null,
+      saveSections: vi.fn(),
+      mutate: vi.fn(),
+      error: null,
+    });
   });
 
   it('renders empty state messaging for popular audiobooks', async () => {
@@ -97,28 +124,39 @@ describe('HomePage', () => {
     const { default: HomePage } = await import('@/app/page');
     render(<HomePage />);
 
-    expect(screen.getByText('No popular audiobooks found')).toBeInTheDocument();
-    expect(screen.getByText('Nothing here')).toBeInTheDocument();
+    expect(screen.getByText('No audiobooks yet')).toBeInTheDocument();
+    // Raw API message is intentionally not shown; friendly empty state is rendered instead
+    expect(screen.queryByText('Nothing here')).not.toBeInTheDocument();
     expect(screen.getByText('New Release')).toBeInTheDocument();
   });
 
-  it('updates pagination when the sticky controls request a new page', async () => {
-    useAudiobooksMock.mockImplementation((category: string, _limit: number, page: number) => {
-      return {
-        audiobooks: [{ asin: `${category}-${page}`, title: `${category}-${page}`, author: 'Author' }],
-        isLoading: false,
-        totalPages: 3,
-        message: null,
-      };
+  it('renders customize button', async () => {
+    useAudiobooksMock.mockReturnValue({
+      audiobooks: [],
+      isLoading: false,
+      totalPages: 0,
+      message: null,
     });
 
     const { default: HomePage } = await import('@/app/page');
     render(<HomePage />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Popular Audiobooks next' }));
+    expect(screen.getByLabelText('Customize home page')).toBeInTheDocument();
+  });
 
-    await waitFor(() => {
-      expect(useAudiobooksMock).toHaveBeenCalledWith('popular', 20, 2, undefined);
+  it('renders empty state when no sections configured', async () => {
+    useHomeSectionsMock.mockReturnValue({
+      sections: [],
+      isLoading: false,
+      nextRefresh: null,
+      saveSections: vi.fn(),
+      mutate: vi.fn(),
+      error: null,
     });
+
+    const { default: HomePage } = await import('@/app/page');
+    render(<HomePage />);
+
+    expect(screen.getByText(/No sections configured/)).toBeInTheDocument();
   });
 });
