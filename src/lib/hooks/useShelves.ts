@@ -2,6 +2,8 @@
  * Component: Shelves Hook
  * Documentation: documentation/frontend/components.md
  */
+'use client';
+
 import { useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { useAuth } from '@/contexts/AuthContext';

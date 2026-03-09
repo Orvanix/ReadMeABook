@@ -771,7 +771,13 @@ export class JobQueueService {
   /**
    * Add sync reading shelves job
    */
-  async addSyncShelvesJob(scheduledJobId?: string, shelfId?: string, shelfType?: 'goodreads' | 'hardcover', maxLookupsPerShelf?: number): Promise<string> {
+  async addSyncShelvesJob(
+    scheduledJobId?: string,
+    shelfId?: string,
+    shelfType?: 'goodreads' | 'hardcover',
+    maxLookupsPerShelf?: number,
+    userId?: string
+  ): Promise<string> {
     return await this.addJob(
       'sync_reading_shelves',
       {

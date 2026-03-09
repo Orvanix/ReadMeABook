@@ -9,6 +9,7 @@
 import axios from 'axios';
 import { XMLParser } from 'fast-xml-parser';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@/generated/prisma/client';
 import { RMABLogger } from '@/lib/utils/logger';
 import {
   ShelfBook,
@@ -118,7 +119,7 @@ export async function processGoodreadsShelves(
   const stats = createEmptyStats();
   const maxLookups = resolveMaxLookups(options);
 
-  const whereClause: any = {};
+  const whereClause: Prisma.GoodreadsShelfWhereInput = {};
   if (options.shelfId) whereClause.id = options.shelfId;
   if (options.userId) whereClause.userId = options.userId;
 
