@@ -7,8 +7,8 @@
 
 import React, { useState } from 'react';
 import { useShelves, GenericShelf } from '@/lib/hooks/useShelves';
-import { useDeleteGoodreadsShelf } from '@/lib/hooks/useGoodreadsShelves';
-import { useDeleteHardcoverShelf } from '@/lib/hooks/useHardcoverShelves';
+import { useDeleteGoodreadsShelf, useUpdateGoodreadsShelf } from '@/lib/hooks/useGoodreadsShelves';
+import { useDeleteHardcoverShelf, useUpdateHardcoverShelf } from '@/lib/hooks/useHardcoverShelves';
 import { AddShelfModal } from '@/components/ui/AddShelfModal';
 import { AudiobookDetailsModal } from '@/components/audiobooks/AudiobookDetailsModal';
 import { usePreferences } from '@/contexts/PreferencesContext';
@@ -37,6 +37,8 @@ export function ShelvesSection() {
     useDeleteGoodreadsShelf();
   const { deleteShelf: deleteHardcover, isLoading: isDeletingHardcover } =
     useDeleteHardcoverShelf();
+  const { updateShelf: updateGoodreads } = useUpdateGoodreadsShelf();
+  const { updateShelf: updateHardcover } = useUpdateHardcoverShelf();
   const { squareCovers } = usePreferences();
 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -52,6 +54,18 @@ export function ShelvesSection() {
         await deleteHardcover(shelf.id);
       }
       setConfirmDeleteId(null);
+    } catch {
+      // Error handled by hook
+    }
+  };
+
+  const handleToggleAutoRequest = async (shelf: GenericShelf) => {
+    try {
+      if (shelf.type === 'goodreads') {
+        await updateGoodreads(shelf.id, { autoRequest: !shelf.autoRequest });
+      } else {
+        await updateHardcover(shelf.id, { autoRequest: !shelf.autoRequest });
+      }
     } catch {
       // Error handled by hook
     }
@@ -131,6 +145,7 @@ export function ShelvesSection() {
               onConfirmDelete={() => setConfirmDeleteId(shelf.id)}
               onCancelDelete={() => setConfirmDeleteId(null)}
               onManage={() => setManageShelf(shelf)}
+              onToggleAutoRequest={() => handleToggleAutoRequest(shelf)}
               onBookClick={(asin) => setSelectedAsin(asin)}
             />
           ))}
@@ -254,6 +269,7 @@ interface ShelfCardProps {
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
   onManage: () => void;
+  onToggleAutoRequest: () => void;
   onBookClick: (asin: string) => void;
 }
 
@@ -266,6 +282,7 @@ function ShelfCard({
   onConfirmDelete,
   onCancelDelete,
   onManage,
+  onToggleAutoRequest,
   onBookClick,
 }: ShelfCardProps) {
   const displayBooks = shelf.books.slice(0, 6);
@@ -292,7 +309,12 @@ function ShelfCard({
     );
 
   return (
-    <div className="group rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700/30 p-6 sm:p-7 transition-all duration-300 hover:shadow-lg hover:shadow-black/[0.04] dark:hover:shadow-black/20 hover:border-gray-200 dark:hover:border-gray-600/40">
+    <div className={cn(
+      'group rounded-2xl bg-white dark:bg-gray-800 border p-6 sm:p-7 transition-all duration-300',
+      shelf.autoRequest
+        ? 'border-gray-100 dark:border-gray-700/30 hover:shadow-lg hover:shadow-black/[0.04] dark:hover:shadow-black/20 hover:border-gray-200 dark:hover:border-gray-600/40'
+        : 'border-gray-200/60 dark:border-gray-700/20 bg-gray-50/50 dark:bg-gray-800/60',
+    )}>
       {/* Top: Shelf info + actions */}
       <div
         className={cn(
@@ -301,13 +323,26 @@ function ShelfCard({
         )}
       >
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-[15px] text-gray-900 dark:text-white truncate leading-snug flex items-center">
+          <h3 className={cn(
+            'font-semibold text-[15px] truncate leading-snug flex items-center',
+            shelf.autoRequest
+              ? 'text-gray-900 dark:text-white'
+              : 'text-gray-400 dark:text-gray-500',
+          )}>
             {shelf.name} {providerIcon}
           </h3>
           <div className="flex items-center gap-2 mt-2">
             {shelf.bookCount != null && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-400 tabular-nums">
                 {shelf.bookCount} {shelf.bookCount === 1 ? 'book' : 'books'}
+              </span>
+            )}
+            {!shelf.autoRequest && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-1 ring-amber-200/50 dark:ring-amber-500/20">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                </svg>
+                Paused
               </span>
             )}
             <span className="inline-flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
@@ -352,6 +387,27 @@ function ShelfCard({
             </div>
           ) : (
             <div className="flex items-center gap-1">
+              <button
+                onClick={onToggleAutoRequest}
+                className={cn(
+                  'p-2 transition-all duration-200 rounded-xl outline-none',
+                  shelf.autoRequest
+                    ? 'text-gray-400 hover:text-amber-500 dark:text-gray-500 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 opacity-40 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-amber-500/40'
+                    : 'text-amber-500 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 opacity-100',
+                )}
+                title={shelf.autoRequest ? 'Pause auto-requesting' : 'Resume auto-requesting'}
+                aria-label={shelf.autoRequest ? 'Pause auto-requesting' : 'Resume auto-requesting'}
+              >
+                {shelf.autoRequest ? (
+                  <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25v13.5m-7.5-13.5v13.5" />
+                  </svg>
+                ) : (
+                  <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                  </svg>
+                )}
+              </button>
               <button
                 onClick={onManage}
                 className="p-2 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-all duration-200 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-500/10 opacity-40 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-500/40 outline-none"
@@ -398,6 +454,7 @@ function ShelfCard({
       </div>
 
       {/* Bottom: Stacked book covers */}
+      <div className={cn(!shelf.autoRequest && 'opacity-50 grayscale-[30%]')}>
       {hasCovers ? (
         <CoverStack
           books={displayBooks}
@@ -419,6 +476,7 @@ function ShelfCard({
           ))}
         </div>
       ) : null}
+      </div>
     </div>
   );
 }

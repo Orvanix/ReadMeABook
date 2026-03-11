@@ -16,6 +16,7 @@ export interface GoodreadsShelf {
   lastSyncAt: string | null;
   createdAt: string;
   bookCount: number | null;
+  autoRequest: boolean;
   books: ShelfBook[];
 }
 
@@ -27,8 +28,8 @@ export const useGoodreadsShelves = useList;
 export function useAddGoodreadsShelf() {
   const { addShelf: addGeneric, isLoading, error } = useAdd();
 
-  const addShelf = async (rssUrl: string) => {
-    return addGeneric({ rssUrl });
+  const addShelf = async (rssUrl: string, autoRequest: boolean = true) => {
+    return addGeneric({ rssUrl, autoRequest });
   };
 
   return { addShelf, isLoading, error };
@@ -39,8 +40,8 @@ export const useDeleteGoodreadsShelf = useDelete;
 export function useUpdateGoodreadsShelf() {
   const { updateShelf: updateGeneric, isLoading, error } = useUpdate();
 
-  const updateShelf = async (shelfId: string, rssUrl: string) => {
-    return updateGeneric(shelfId, { rssUrl });
+  const updateShelf = async (shelfId: string, updates: { rssUrl?: string; autoRequest?: boolean }) => {
+    return updateGeneric(shelfId, updates);
   };
 
   return { updateShelf, isLoading, error };

@@ -18,6 +18,7 @@ const logger = RMABLogger.create('API.HardcoverShelves');
 const AddShelfSchema = z.object({
   listId: z.string().min(1, { message: 'List ID is required' }),
   apiToken: z.string().min(1, { message: 'API Token is required' }),
+  autoRequest: z.boolean().optional().default(true),
 });
 
 /**
@@ -46,6 +47,7 @@ export async function GET(request: NextRequest) {
           lastSyncAt: shelf.lastSyncAt,
           createdAt: shelf.createdAt,
           bookCount: shelf.bookCount ?? null,
+          autoRequest: shelf.autoRequest,
           books,
         };
       });
@@ -75,7 +77,9 @@ export async function POST(request: NextRequest) {
       }
 
       const body = await req.json();
-      let { listId, apiToken } = AddShelfSchema.parse(body);
+      const parsed = AddShelfSchema.parse(body);
+      let { listId, apiToken } = parsed;
+      const { autoRequest } = parsed;
 
       // Clean up token in case user pasted "Bearer " prefix
       apiToken = apiToken.trim();
@@ -139,6 +143,7 @@ export async function POST(request: NextRequest) {
           name: listName,
           listId,
           apiToken: encryptedToken,
+          autoRequest,
           bookCount,
           coverUrls:
             initialBooks.length > 0 ? JSON.stringify(initialBooks) : null,
@@ -168,6 +173,7 @@ export async function POST(request: NextRequest) {
             lastSyncAt: shelf.lastSyncAt,
             createdAt: shelf.createdAt,
             bookCount: shelf.bookCount,
+            autoRequest: shelf.autoRequest,
             books: initialBooks,
           },
           bookCount,

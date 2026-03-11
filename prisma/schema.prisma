@@ -527,9 +527,10 @@ model GoodreadsShelf {
   rssUrl     String    @map("rss_url") @db.Text
   lastSyncAt DateTime? @map("last_sync_at")
   bookCount  Int?      @map("book_count")
-  coverUrls  String?   @map("cover_urls") @db.Text // JSON array of cover image URLs
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  coverUrls   String?   @map("cover_urls") @db.Text // JSON array of cover image URLs
+  autoRequest Boolean   @default(true) @map("auto_request") // Whether to auto-create requests for books on this shelf
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -577,9 +578,10 @@ model HardcoverShelf {
   apiToken   String    @map("api_token") @db.Text // User's personal access token for hardcover api
   lastSyncAt DateTime? @map("last_sync_at")
   bookCount  Int?      @map("book_count")
-  coverUrls  String?   @map("cover_urls") @db.Text // JSON array of cover image URLs
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  coverUrls   String?   @map("cover_urls") @db.Text // JSON array of cover image URLs
+  autoRequest Boolean   @default(true) @map("auto_request") // Whether to auto-create requests for books on this shelf
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

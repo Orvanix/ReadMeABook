@@ -20,6 +20,7 @@ const AddShelfSchema = z.object({
     (url) => GOODREADS_RSS_PATTERN.test(url),
     { message: 'URL must be a Goodreads shelf RSS URL (goodreads.com/review/list_rss/...)' }
   ),
+  autoRequest: z.boolean().optional().default(true),
 });
 
 /**
@@ -66,6 +67,7 @@ export async function GET(request: NextRequest) {
           lastSyncAt: shelf.lastSyncAt,
           createdAt: shelf.createdAt,
           bookCount: shelf.bookCount ?? null,
+          autoRequest: shelf.autoRequest,
           books,
         };
       });
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
       }
 
       const body = await req.json();
-      const { rssUrl } = AddShelfSchema.parse(body);
+      const { rssUrl, autoRequest } = AddShelfSchema.parse(body);
 
       // Check for duplicate
       const existing = await prisma.goodreadsShelf.findUnique({
@@ -132,6 +134,7 @@ export async function POST(request: NextRequest) {
           name: shelfName,
           rssUrl,
           bookCount,
+          autoRequest,
           coverUrls: initialBooks.length > 0 ? JSON.stringify(initialBooks) : null,
         },
       });
@@ -154,6 +157,7 @@ export async function POST(request: NextRequest) {
           lastSyncAt: shelf.lastSyncAt,
           createdAt: shelf.createdAt,
           bookCount: shelf.bookCount,
+          autoRequest: shelf.autoRequest,
           books: initialBooks,
         },
         bookCount,

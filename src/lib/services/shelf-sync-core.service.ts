@@ -72,6 +72,7 @@ export async function processShelfBooks(
   stats: ShelfSyncStats,
   log: LoggerType,
   maxLookups: number,
+  autoRequest: boolean = true,
 ): Promise<{ coverUrl: string; asin: string | null; title: string; author: string }[]> {
   stats.booksFound += books.length;
 
@@ -111,7 +112,7 @@ export async function processShelfBooks(
       }
     }
 
-    if (mapping.audibleAsin) {
+    if (mapping.audibleAsin && autoRequest) {
       try {
         const result = await createRequestForUser(userId, {
           asin: mapping.audibleAsin,

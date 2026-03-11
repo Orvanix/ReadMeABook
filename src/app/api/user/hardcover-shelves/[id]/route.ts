@@ -17,6 +17,7 @@ const logger = RMABLogger.create('API.HardcoverShelves');
 const UpdateHardcoverSchema = z.object({
   listId: z.string().min(1, 'List ID is required').optional(),
   apiToken: z.string().optional(),
+  autoRequest: z.boolean().optional(),
 });
 
 /**
@@ -89,9 +90,13 @@ export async function PATCH(
       }
 
       const body = await request.json();
-      const { listId, apiToken } = UpdateHardcoverSchema.parse(body);
+      const { listId, apiToken, autoRequest } = UpdateHardcoverSchema.parse(body);
 
-      const updateData: { listId?: string; apiToken?: string; lastSyncAt?: null; bookCount?: null; coverUrls?: null } = {};
+      const updateData: { listId?: string; apiToken?: string; autoRequest?: boolean; lastSyncAt?: null; bookCount?: null; coverUrls?: null } = {};
+
+      if (autoRequest !== undefined) {
+        updateData.autoRequest = autoRequest;
+      }
       let needsResync = false;
 
       let cleanedToken: string | undefined;

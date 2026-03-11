@@ -18,6 +18,7 @@ export interface GenericShelf {
   lastSyncAt: string | null;
   createdAt: string;
   bookCount: number | null;
+  autoRequest: boolean;
   books: ShelfBook[];
 }
 

@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
           lastSyncAt: s.lastSyncAt,
           createdAt: s.createdAt,
           bookCount: s.bookCount ?? null,
+          autoRequest: s.autoRequest,
           books: processBooks(s.coverUrls),
         })),
         ...hardcover.map((s) => ({
@@ -52,6 +53,7 @@ export async function GET(request: NextRequest) {
           lastSyncAt: s.lastSyncAt,
           createdAt: s.createdAt,
           bookCount: s.bookCount ?? null,
+          autoRequest: s.autoRequest,
           books: processBooks(s.coverUrls),
         })),
       ].sort(

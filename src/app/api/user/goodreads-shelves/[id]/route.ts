@@ -13,7 +13,8 @@ import { z } from 'zod';
 const logger = RMABLogger.create('API.GoodreadsShelves');
 
 const UpdateGoodreadsSchema = z.object({
-  rssUrl: z.string().url('Must be a valid URL'),
+  rssUrl: z.string().url('Must be a valid URL').optional(),
+  autoRequest: z.boolean().optional(),
 });
 
 /**
@@ -81,21 +82,37 @@ export async function PATCH(
       }
 
       const body = await request.json();
-      const { rssUrl } = UpdateGoodreadsSchema.parse(body);
+      const { rssUrl, autoRequest } = UpdateGoodreadsSchema.parse(body);
 
-      // Force re-fetch by clearing metadata
+      const updateData: Record<string, unknown> = {};
+      let needsResync = false;
+
+      if (rssUrl !== undefined) {
+        updateData.rssUrl = rssUrl;
+        updateData.lastSyncAt = null;
+        updateData.bookCount = null;
+        updateData.coverUrls = null;
+        needsResync = true;
+      }
+
+      if (autoRequest !== undefined) {
+        updateData.autoRequest = autoRequest;
+      }
+
       const updated = await prisma.goodreadsShelf.update({
         where: { id },
-        data: { rssUrl, lastSyncAt: null, bookCount: null, coverUrls: null },
+        data: updateData,
       });
 
-      try {
-        const jobQueue = getJobQueueService();
-        await jobQueue.addSyncShelvesJob(undefined, updated.id, 'goodreads', 0);
-      } catch (error) {
-        logger.error('Failed to trigger immediate list sync', {
-          error: error instanceof Error ? error.message : String(error),
-        });
+      if (needsResync) {
+        try {
+          const jobQueue = getJobQueueService();
+          await jobQueue.addSyncShelvesJob(undefined, updated.id, 'goodreads', 0);
+        } catch (error) {
+          logger.error('Failed to trigger immediate list sync', {
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
 
       return NextResponse.json({ success: true, shelf: updated });

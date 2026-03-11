@@ -85,10 +85,10 @@ export async function processHardcoverShelves(
         continue;
       }
 
-      log.info(`Found ${fetchedData.books.length} books in list "${shelf.name}" (Hardcover API)`);
+      log.info(`Found ${fetchedData.books.length} books in list "${shelf.name}" (Hardcover API)${!shelf.autoRequest ? ' (auto-request disabled)' : ''}`);
 
       const bookData = await processShelfBooks(
-        'hardcover', fetchedData.books, shelf.user.id, shelf.id, stats, log, maxLookups,
+        'hardcover', fetchedData.books, shelf.user.id, shelf.id, stats, log, maxLookups, shelf.autoRequest,
       );
 
       const finalListName =
