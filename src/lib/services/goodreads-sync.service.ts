@@ -148,10 +148,10 @@ export async function processGoodreadsShelves(
         continue;
       }
 
-      log.info(`Found ${rssData.books.length} books in shelf "${shelf.name}"`);
+      log.info(`Found ${rssData.books.length} books in shelf "${shelf.name}"${!shelf.autoRequest ? ' (auto-request disabled)' : ''}`);
 
       const bookData = await processShelfBooks(
-        'goodreads', rssData.books, shelf.user.id, shelf.id, stats, log, maxLookups,
+        'goodreads', rssData.books, shelf.user.id, shelf.id, stats, log, maxLookups, shelf.autoRequest,
       );
 
       await prisma.goodreadsShelf.update({

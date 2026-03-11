@@ -32,6 +32,8 @@ export function AddShelfModal({ isOpen, onClose }: AddShelfModalProps) {
   const [statusId, setStatusId] = useState('1');
   const [customListId, setCustomListId] = useState('');
 
+  // Shared State
+  const [autoRequest, setAutoRequest] = useState(true);
   const [validationError, setValidationError] = useState('');
   const [success, setSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -72,12 +74,12 @@ export function AddShelfModal({ isOpen, onClose }: AddShelfModalProps) {
 
     try {
       if (provider === 'goodreads') {
-        const shelf = await addGoodreads(rssUrl);
+        const shelf = await addGoodreads(rssUrl, autoRequest);
         setSuccessMessage(`Added shelf "${shelf.name}" successfully!`);
         setRssUrl('');
       } else {
         const finalId = listType === 'status' ? `status-${statusId}` : customListId.trim();
-        const shelf = await addHardcover(apiToken.trim(), finalId);
+        const shelf = await addHardcover(apiToken.trim(), finalId, autoRequest);
         setSuccessMessage(`Added list "${shelf.name}" successfully!`);
         setApiToken('');
         setCustomListId('');
@@ -98,6 +100,7 @@ export function AddShelfModal({ isOpen, onClose }: AddShelfModalProps) {
     setRssUrl('');
     setApiToken('');
     setCustomListId('');
+    setAutoRequest(true);
     setValidationError('');
     setSuccess(false);
     setSuccessMessage('');
@@ -214,6 +217,32 @@ export function AddShelfModal({ isOpen, onClose }: AddShelfModalProps) {
               success={success}
             />
           )}
+
+          {/* Auto-Request Toggle */}
+          <label className="flex items-center justify-between gap-3 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-700/30 cursor-pointer select-none">
+            <div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Auto-request books</span>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                Automatically request audiobooks from this shelf
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoRequest}
+              onClick={() => setAutoRequest(!autoRequest)}
+              disabled={isLoading || success}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${
+                autoRequest ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+              } ${(isLoading || success) ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                  autoRequest ? 'translate-x-4' : 'translate-x-0.5'
+                } mt-0.5`}
+              />
+            </button>
+          </label>
 
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="ghost" size="sm" onClick={handleClose} disabled={isLoading || success}>

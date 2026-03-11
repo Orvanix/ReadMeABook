@@ -16,6 +16,7 @@ export interface HardcoverShelf {
   lastSyncAt: string | null;
   createdAt: string;
   bookCount: number | null;
+  autoRequest: boolean;
   books: ShelfBook[];
 }
 
@@ -27,8 +28,8 @@ export const useHardcoverShelves = useList;
 export function useAddHardcoverShelf() {
   const { addShelf: addGeneric, isLoading, error } = useAdd();
 
-  const addShelf = async (apiToken: string, listId: string) => {
-    return addGeneric({ apiToken, listId });
+  const addShelf = async (apiToken: string, listId: string, autoRequest: boolean = true) => {
+    return addGeneric({ apiToken, listId, autoRequest });
   };
 
   return { addShelf, isLoading, error };
@@ -41,7 +42,7 @@ export function useUpdateHardcoverShelf() {
 
   const updateShelf = async (
     shelfId: string,
-    updates: { listId?: string; apiToken?: string; forceSync?: boolean },
+    updates: { listId?: string; apiToken?: string; forceSync?: boolean; autoRequest?: boolean },
   ) => {
     return updateGeneric(shelfId, updates);
   };

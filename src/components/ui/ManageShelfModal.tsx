@@ -45,7 +45,7 @@ export function ManageShelfModal({ shelf, isOpen, onClose }: ManageShelfModalPro
     try {
       if (shelf.type === 'goodreads') {
         if (!rssUrl.trim()) return;
-        await updateGoodreads(shelf.id, rssUrl.trim());
+        await updateGoodreads(shelf.id, { rssUrl: rssUrl.trim() });
       } else {
         if (!listId.trim()) return;
         await updateHardcover(shelf.id, {
