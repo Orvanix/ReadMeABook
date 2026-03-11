@@ -59,13 +59,15 @@ export function AudiobookCard({
   const [error, setError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [localRequestStatus, setLocalRequestStatus] = useState<string | undefined>(undefined);
+  const [localIsIgnored, setLocalIsIgnored] = useState<boolean | undefined>(undefined);
   const [coverError, setCoverError] = useState(false);
 
-  // Build a display-only audiobook with the local status override
+  // Build a display-only audiobook with local overrides
   const displayAudiobook = localRequestStatus !== undefined
     ? { ...audiobook, requestStatus: localRequestStatus }
     : audiobook;
   const status = getStatusConfig(displayAudiobook);
+  const isIgnored = localIsIgnored !== undefined ? localIsIgnored : audiobook.isIgnored;
 
   const handleRequest = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -218,6 +220,19 @@ export function AudiobookCard({
                 <span>{audiobook.rating.toFixed(1)}</span>
               </div>
             )}
+
+            {/* Ignored Indicator - Bottom Left */}
+            {isIgnored && (
+              <div
+                className="absolute bottom-3 left-3 flex items-center gap-1 px-2 py-1 rounded-lg bg-black/50 backdrop-blur-md text-gray-300 text-xs font-medium transition-opacity duration-300 group-hover:opacity-0"
+                title="Ignored from auto-requests"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                </svg>
+                <span>Ignored</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -253,6 +268,7 @@ export function AudiobookCard({
         onClose={() => setShowModal(false)}
         onRequestSuccess={onRequestSuccess}
         onStatusChange={(newStatus) => setLocalRequestStatus(newStatus)}
+        onIgnoreChange={(ignored) => setLocalIsIgnored(ignored)}
         isRequested={audiobook.isRequested || localRequestStatus !== undefined}
         requestStatus={displayAudiobook.requestStatus}
         isAvailable={audiobook.isAvailable}

@@ -19,8 +19,10 @@ import { usePreferences } from '@/contexts/PreferencesContext';
 import { InteractiveTorrentSearchModal } from '@/components/requests/InteractiveTorrentSearchModal';
 import { ReportIssueModal } from '@/components/audiobooks/ReportIssueModal';
 import { ManualImportBrowser } from '@/components/audiobooks/ManualImportBrowser';
-import { FolderArrowDownIcon } from '@heroicons/react/24/outline';
+import { FolderArrowDownIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { EyeSlashIcon as EyeSlashSolidIcon } from '@heroicons/react/24/solid';
 import { fetchWithAuth } from '@/lib/utils/api';
+import { useIsIgnored, useToggleIgnore } from '@/lib/hooks/useIgnoredAudiobooks';
 
 interface AudiobookDetailsModalProps {
   asin: string;
@@ -28,6 +30,7 @@ interface AudiobookDetailsModalProps {
   onClose: () => void;
   onRequestSuccess?: () => void;
   onStatusChange?: (newStatus: string) => void;
+  onIgnoreChange?: (isIgnored: boolean) => void;
   isRequested?: boolean;
   requestStatus?: string | null;
   isAvailable?: boolean;
@@ -69,6 +72,7 @@ export function AudiobookDetailsModal({
   onClose,
   onRequestSuccess,
   onStatusChange,
+  onIgnoreChange,
   isRequested = false,
   requestStatus = null,
   isAvailable = false,
@@ -85,6 +89,9 @@ export function AudiobookDetailsModal({
   const { downloadAvailable, requestId } = useDownloadStatus(isOpen ? asin : null);
   const { fetchEbook, isLoading: isFetchingEbook } = useFetchEbookByAsin();
 
+  const { isIgnored, ignoredId, isLoading: isLoadingIgnore } = useIsIgnored(isOpen ? asin : null);
+  const { addIgnore, removeIgnore } = useToggleIgnore();
+
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
@@ -97,6 +104,7 @@ export function AudiobookDetailsModal({
   const [localRequestStatus, setLocalRequestStatus] = useState<string | null>(requestStatus ?? null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [coverError, setCoverError] = useState(false);
+  const [isTogglingIgnore, setIsTogglingIgnore] = useState(false);
 
   // Sync local status when the prop changes (e.g. page data refreshes)
   useEffect(() => {
@@ -193,6 +201,31 @@ export function AudiobookDetailsModal({
       showNotification('Failed to start download. Please try again.', 'error');
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleToggleIgnore = async () => {
+    if (!user || !audiobook) return;
+    setIsTogglingIgnore(true);
+    try {
+      if (isIgnored && ignoredId) {
+        await removeIgnore(ignoredId, asin);
+        onIgnoreChange?.(false);
+        showNotification('Removed from ignore list');
+      } else {
+        await addIgnore({
+          asin,
+          title: audiobook.title,
+          author: audiobook.author,
+          coverArtUrl: audiobook.coverArtUrl,
+        });
+        onIgnoreChange?.(true);
+        showNotification('Added to ignore list — auto-requests will skip this book');
+      }
+    } catch (err) {
+      showNotification(err instanceof Error ? err.message : 'Failed to update ignore status', 'error');
+    } finally {
+      setIsTogglingIgnore(false);
     }
   };
 
@@ -683,6 +716,26 @@ export function AudiobookDetailsModal({
                     </button>
                   )}
                 </>
+              )}
+
+              {/* Ignore Toggle - always visible when user is logged in */}
+              {user && !isLoadingIgnore && (
+                <button
+                  onClick={handleToggleIgnore}
+                  disabled={isTogglingIgnore}
+                  className={`p-3 rounded-xl transition-colors disabled:opacity-50 ${
+                    isIgnored
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                      : 'bg-gray-100 dark:bg-gray-800/50 text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }`}
+                  title={isIgnored ? 'Stop Ignoring — auto-requests will resume for this book' : 'Ignore from Auto-Requests'}
+                >
+                  {isIgnored ? (
+                    <EyeSlashSolidIcon className="w-6 h-6" />
+                  ) : (
+                    <EyeSlashIcon className="w-6 h-6" />
+                  )}
+                </button>
               )}
 
             </div>

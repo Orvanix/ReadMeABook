@@ -27,6 +27,13 @@ vi.mock('@/lib/utils/audiobook-matcher', () => ({
   enrichAudiobooksWithMatches: enrichMock,
 }));
 
+// Mock ignore status annotation — pass-through that adds isIgnored: false
+vi.mock('@/lib/utils/ignored-audiobooks', () => ({
+  annotateWithIgnoreStatus: vi.fn(async (books: any[]) =>
+    books.map((b: any) => ({ ...b, isIgnored: false }))
+  ),
+}));
+
 vi.mock('@/lib/middleware/auth', () => ({
   getCurrentUser: currentUserMock,
 }));

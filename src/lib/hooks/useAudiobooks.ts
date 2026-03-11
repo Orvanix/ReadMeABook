@@ -33,6 +33,7 @@ export interface Audiobook {
   requestId?: string | null;  // ID of request (if any)
   requestedByUsername?: string | null;  // Username who requested (only if not current user)
   hasReportedIssue?: boolean;  // True if an open issue exists for this audiobook
+  isIgnored?: boolean;  // True if this user has ignored this audiobook from auto-requests
 }
 
 export function useAudiobooks(type: 'popular' | 'new-releases', limit: number = 20, page: number = 1, hideAvailable: boolean = false) {

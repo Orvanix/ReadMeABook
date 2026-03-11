@@ -10,6 +10,7 @@ import { deduplicateAndCollectGroups } from '@/lib/utils/deduplicate-audiobooks'
 import { persistDedupGroups } from '@/lib/services/works.service';
 import { getCurrentUser } from '@/lib/middleware/auth';
 import { RMABLogger } from '@/lib/utils/logger';
+import { annotateWithIgnoreStatus } from '@/lib/utils/ignored-audiobooks';
 
 const logger = RMABLogger.create('API.Authors.Books');
 
@@ -67,11 +68,14 @@ export async function GET(
     const userId = currentUser.sub || undefined;
     const enrichedBooks = await enrichAudiobooksWithMatches(dedupedBooks, userId);
 
-    logger.info(`Author books complete: "${authorName}" → ${enrichedBooks.length} books (page ${page})`);
+    // Annotate with per-user ignore status
+    const annotatedBooks = await annotateWithIgnoreStatus(enrichedBooks, userId);
+
+    logger.info(`Author books complete: "${authorName}" → ${annotatedBooks.length} books (page ${page})`);
 
     return NextResponse.json({
       success: true,
-      books: enrichedBooks,
+      books: annotatedBooks,
       authorName: authorName.trim(),
       authorAsin: asin,
       totalBooks: enrichedBooks.length,

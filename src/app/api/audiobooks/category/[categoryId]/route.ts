@@ -11,6 +11,7 @@ import { prisma } from '@/lib/db';
 import { enrichAudiobooksWithMatches, getAvailableAsins } from '@/lib/utils/audiobook-matcher';
 import { getCurrentUser } from '@/lib/middleware/auth';
 import { RMABLogger } from '@/lib/utils/logger';
+import { annotateWithIgnoreStatus } from '@/lib/utils/ignored-audiobooks';
 
 const logger = RMABLogger.create('API.Audiobooks.Category');
 
@@ -129,12 +130,15 @@ export async function GET(
     const userId = currentUser?.sub || undefined;
     const enrichedAudiobooks = await enrichAudiobooksWithMatches(audibleBooks, userId);
 
+    // Annotate with per-user ignore status
+    const annotatedAudiobooks = await annotateWithIgnoreStatus(enrichedAudiobooks, userId);
+
     const totalPages = Math.ceil(totalCount / limit);
     const hasMore = page < totalPages;
 
     return NextResponse.json({
       success: true,
-      audiobooks: enrichedAudiobooks,
+      audiobooks: annotatedAudiobooks,
       count: enrichedAudiobooks.length,
       totalCount,
       page,

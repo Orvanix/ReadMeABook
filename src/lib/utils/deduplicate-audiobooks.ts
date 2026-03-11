@@ -6,7 +6,7 @@
  * under different ASINs (publisher re-listings, rights transfers, etc.).
  *
  * Dedup key: normalized title + normalized narrator
- * Duration tolerance: max(longerDuration * 0.01, 5) minutes
+ * Duration tolerance: max(longerDuration * 0.05, 10) minutes
  * Missing duration treated as compatible (graceful degradation).
  */
 
@@ -95,13 +95,13 @@ function normalizeNarrator(narrator?: string): string {
 
 /**
  * Check if two durations are compatible (represent the same recording).
- * Tolerance: max(longerDuration * 0.01, 5) minutes.
+ * Tolerance: max(longerDuration * 0.05, 10) minutes.
  * Missing duration on either side is treated as compatible.
  */
 export function areDurationsCompatible(a?: number, b?: number): boolean {
   if (a == null || b == null) return true;
   const longer = Math.max(a, b);
-  const tolerance = Math.max(longer * 0.01, 5);
+  const tolerance = Math.max(longer * 0.05, 10);
   return Math.abs(a - b) <= tolerance;
 }
 

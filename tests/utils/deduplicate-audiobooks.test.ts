@@ -137,16 +137,18 @@ describe('areDurationsCompatible', () => {
     expect(areDurationsCompatible(600, 600)).toBe(true);
   });
 
-  it('uses 1% of longer duration as tolerance for long books', () => {
-    // Two 40-hour books (2400 min): tolerance = max(2400*0.01, 5) = 24 min
-    expect(areDurationsCompatible(2400, 2424)).toBe(true);  // exactly at tolerance
-    expect(areDurationsCompatible(2400, 2425)).toBe(false); // just over
+  it('uses 5% of longer duration as tolerance for long books', () => {
+    // tolerance = max(longer*0.05, 10). When b > a, longer = b, so threshold shifts.
+    // 2400 vs 2526: longer=2526, tol=126.3, diff=126 → true
+    expect(areDurationsCompatible(2400, 2526)).toBe(true);
+    // 2400 vs 2527: longer=2527, tol=126.35, diff=127 → false
+    expect(areDurationsCompatible(2400, 2527)).toBe(false);
   });
 
-  it('uses 5-minute minimum tolerance for short books', () => {
-    // Two 2-hour books (120 min): tolerance = max(120*0.01, 5) = max(1.2, 5) = 5 min
-    expect(areDurationsCompatible(120, 125)).toBe(true);  // exactly at 5-min minimum
-    expect(areDurationsCompatible(120, 126)).toBe(false); // just over
+  it('uses 10-minute minimum tolerance for short books', () => {
+    // Two 2-hour books (120 min): tolerance = max(120*0.05, 10) = max(6, 10) = 10 min
+    expect(areDurationsCompatible(120, 130)).toBe(true);  // exactly at 10-min minimum
+    expect(areDurationsCompatible(120, 131)).toBe(false); // just over
   });
 
   it('keeps abridged vs unabridged separate (large duration gap)', () => {
@@ -155,10 +157,10 @@ describe('areDurationsCompatible', () => {
   });
 
   it('symmetry: order does not matter', () => {
-    expect(areDurationsCompatible(2400, 2424)).toBe(true);
-    expect(areDurationsCompatible(2424, 2400)).toBe(true);
-    expect(areDurationsCompatible(120, 126)).toBe(false);
-    expect(areDurationsCompatible(126, 120)).toBe(false);
+    expect(areDurationsCompatible(2400, 2526)).toBe(true);
+    expect(areDurationsCompatible(2526, 2400)).toBe(true);
+    expect(areDurationsCompatible(120, 131)).toBe(false);
+    expect(areDurationsCompatible(131, 120)).toBe(false);
   });
 });
 
@@ -305,17 +307,17 @@ describe('deduplicateAudiobooks', () => {
   });
 
   it('uses percentage tolerance for very long audiobooks', () => {
-    // Two 40-hour books: tolerance = max(2400*0.01, 5) = 24 min
+    // tolerance = max(longer*0.05, 10). 2400 vs 2526: longer=2526, tol=126.3, diff=126 → same
     const books = [
       makeBook({ asin: 'A1', title: 'Long Book', author: 'Auth', narrator: 'Nar', durationMinutes: 2400 }),
-      makeBook({ asin: 'A2', title: 'Long Book', author: 'Auth', narrator: 'Nar', durationMinutes: 2420 }),
+      makeBook({ asin: 'A2', title: 'Long Book', author: 'Auth', narrator: 'Nar', durationMinutes: 2526 }),
     ];
     expect(deduplicateAudiobooks(books)).toHaveLength(1);
 
-    // Beyond tolerance
+    // Beyond tolerance: 2400 vs 2600: longer=2600, tol=130, diff=200 → different
     const booksFar = [
       makeBook({ asin: 'A1', title: 'Long Book', author: 'Auth', narrator: 'Nar', durationMinutes: 2400 }),
-      makeBook({ asin: 'A2', title: 'Long Book', author: 'Auth', narrator: 'Nar', durationMinutes: 2430 }),
+      makeBook({ asin: 'A2', title: 'Long Book', author: 'Auth', narrator: 'Nar', durationMinutes: 2600 }),
     ];
     expect(deduplicateAudiobooks(booksFar)).toHaveLength(2);
   });

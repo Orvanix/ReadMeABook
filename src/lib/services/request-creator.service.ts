@@ -12,7 +12,7 @@ import { getJobQueueService } from '@/lib/services/job-queue.service';
 import { findPlexMatch } from '@/lib/utils/audiobook-matcher';
 import { getAudibleService } from '@/lib/integrations/audible.service';
 import { RMABLogger } from '@/lib/utils/logger';
-import { seedAsin } from '@/lib/services/works.service';
+import { seedAsin, getSiblingAsins } from '@/lib/services/works.service';
 
 const logger = RMABLogger.create('RequestCreator');
 
@@ -27,11 +27,13 @@ export interface CreateRequestInput {
 
 export interface CreateRequestOptions {
   skipAutoSearch?: boolean;
+  /** When true, skip the per-user ignore list check (used for manual requests) */
+  bypassIgnore?: boolean;
 }
 
 export type CreateRequestResult =
   | { success: true; request: any }
-  | { success: false; reason: 'already_available' | 'being_processed' | 'duplicate' | 'user_not_found'; message: string };
+  | { success: false; reason: 'already_available' | 'being_processed' | 'duplicate' | 'user_not_found' | 'ignored'; message: string };
 
 /**
  * Create a request for a user, with full duplicate detection, library checks,
@@ -42,7 +44,7 @@ export async function createRequestForUser(
   audiobook: CreateRequestInput,
   options: CreateRequestOptions = {}
 ): Promise<CreateRequestResult> {
-  const { skipAutoSearch = false } = options;
+  const { skipAutoSearch = false, bypassIgnore = false } = options;
 
   // Check for existing active request (downloaded/available) for this ASIN
   const existingActiveRequest = await prisma.request.findFirst({
@@ -79,6 +81,18 @@ export async function createRequestForUser(
       reason: 'already_available',
       message: 'This audiobook is already available in your library',
     };
+  }
+
+  // Check per-user ignore list (skipped for manual requests via bypassIgnore)
+  if (!bypassIgnore) {
+    const isIgnored = await checkIgnoreList(userId, audiobook.asin);
+    if (isIgnored) {
+      return {
+        success: false,
+        reason: 'ignored',
+        message: 'This audiobook is on your ignore list',
+      };
+    }
   }
 
   // Fetch full details from Audnexus for year/series
@@ -278,4 +292,35 @@ export async function createRequestForUser(
   }
 
   return { success: true, request: newRequest };
+}
+
+/**
+ * Check if an ASIN (or any of its sibling ASINs via the works table)
+ * is on the user's ignore list. Returns true if the book should be blocked.
+ */
+async function checkIgnoreList(userId: string, asin: string): Promise<boolean> {
+  // Direct check: is this exact ASIN ignored?
+  const directIgnore = await prisma.ignoredAudiobook.findUnique({
+    where: { userId_asin: { userId, asin } },
+  });
+  if (directIgnore) return true;
+
+  // Works-system expansion: check sibling ASINs
+  try {
+    const siblingMap = await getSiblingAsins([asin]);
+    const siblings = siblingMap.get(asin);
+    if (siblings && siblings.length > 0) {
+      const siblingIgnore = await prisma.ignoredAudiobook.findFirst({
+        where: {
+          userId,
+          asin: { in: siblings },
+        },
+      });
+      if (siblingIgnore) return true;
+    }
+  } catch {
+    // Works expansion is best-effort — if it fails, only direct check applies
+  }
+
+  return false;
 }

@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         narrator: audiobook.narrator,
         description: audiobook.description,
         coverArtUrl: audiobook.coverArtUrl,
-      }, { skipAutoSearch });
+      }, { skipAutoSearch, bypassIgnore: true });
 
       if (!result.success) {
         const statusMap: Record<string, { error: string; status: number }> = {
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
           being_processed: { error: 'BeingProcessed', status: 409 },
           duplicate: { error: 'DuplicateRequest', status: 409 },
           user_not_found: { error: 'UserNotFound', status: 404 },
+          ignored: { error: 'Ignored', status: 409 },
         };
         const mapped = statusMap[result.reason] || { error: 'RequestError', status: 500 };
         return NextResponse.json(

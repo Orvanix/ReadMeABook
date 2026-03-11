@@ -46,7 +46,13 @@ export function createShelfHooks<TShelf>(endpoint: string) {
     const key = accessToken ? endpoint : null;
 
     const { data, error, isLoading } = useSWR(key, fetcher, {
-      refreshInterval: 30000,
+      refreshInterval: (latestData: { shelves: TShelf[] } | undefined) => {
+        const shelves = latestData?.shelves || [];
+        const hasSyncing = shelves.some(
+          (s) => !(s as Record<string, unknown>)['lastSyncAt'],
+        );
+        return hasSyncing ? 3000 : 30000;
+      },
     });
 
     return {

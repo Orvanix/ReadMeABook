@@ -10,6 +10,7 @@ import { deduplicateAndCollectGroups } from '@/lib/utils/deduplicate-audiobooks'
 import { persistDedupGroups } from '@/lib/services/works.service';
 import { getCurrentUser } from '@/lib/middleware/auth';
 import { RMABLogger } from '@/lib/utils/logger';
+import { annotateWithIgnoreStatus } from '@/lib/utils/ignored-audiobooks';
 
 const logger = RMABLogger.create('API.Audiobooks.Search');
 
@@ -51,10 +52,13 @@ export async function GET(request: NextRequest) {
     // Enrich search results with availability and request status information
     const enrichedResults = await enrichAudiobooksWithMatches(dedupedResults, userId);
 
+    // Annotate with per-user ignore status
+    const annotatedResults = await annotateWithIgnoreStatus(enrichedResults, userId);
+
     return NextResponse.json({
       success: true,
       query: results.query,
-      results: enrichedResults,
+      results: annotatedResults,
       totalResults: enrichedResults.length,
       page: results.page,
       hasMore: results.hasMore,

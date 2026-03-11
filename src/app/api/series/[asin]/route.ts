@@ -10,6 +10,7 @@ import { scrapeSeriesPage } from '@/lib/integrations/audible-series';
 import { enrichAudiobooksWithMatches } from '@/lib/utils/audiobook-matcher';
 import { deduplicateAndCollectGroups } from '@/lib/utils/deduplicate-audiobooks';
 import { persistDedupGroups } from '@/lib/services/works.service';
+import { annotateWithIgnoreStatus } from '@/lib/utils/ignored-audiobooks';
 
 const logger = RMABLogger.create('API.Series.Detail');
 
@@ -63,13 +64,16 @@ export async function GET(
     const userId = currentUser.sub || undefined;
     const enrichedBooks = await enrichAudiobooksWithMatches(dedupedBooks, userId);
 
-    logger.info(`Series detail complete: "${detail.title}" (${enrichedBooks.length} books, page ${page})`);
+    // Annotate with per-user ignore status
+    const annotatedBooks = await annotateWithIgnoreStatus(enrichedBooks, userId);
+
+    logger.info(`Series detail complete: "${detail.title}" (${annotatedBooks.length} books, page ${page})`);
 
     return NextResponse.json({
       success: true,
       series: {
         ...detail,
-        books: enrichedBooks,
+        books: annotatedBooks,
       },
       hasMore: detail.hasMore,
       page: detail.page,

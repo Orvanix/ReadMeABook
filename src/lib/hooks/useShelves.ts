@@ -30,7 +30,11 @@ export function useShelves() {
   const endpoint = accessToken ? '/api/user/shelves' : null;
 
   const { data, error, isLoading } = useSWR(endpoint, fetcher, {
-    refreshInterval: 30000,
+    refreshInterval: (latestData: { shelves: GenericShelf[] } | undefined) => {
+      const shelves = latestData?.shelves || [];
+      const hasSyncing = shelves.some((s) => !s.lastSyncAt);
+      return hasSyncing ? 3000 : 30000;
+    },
   });
 
   return {
