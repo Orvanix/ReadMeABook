@@ -32,7 +32,7 @@ describe('Admin login token routes', () => {
     authRequest = { user: { id: 'admin-1', username: 'admin', role: 'admin' }, json: vi.fn() };
     requireAuthMock.mockImplementation((_req: any, handler: any) => handler(authRequest));
     requireAdminMock.mockImplementation((_req: any, handler: any) => handler());
-    generateApiTokenMock.mockReturnValue({ fullToken: 'rmab_test_token' });
+    generateApiTokenMock.mockReturnValue({ fullToken: 'rmab_test_token', tokenHash: 'hash_abc123' });
   });
 
   describe('POST /api/admin/users/[id]/login-token', () => {

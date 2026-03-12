@@ -8,7 +8,6 @@ import { requireAuth, requireAdmin, AuthenticatedRequest } from '@/lib/middlewar
 import { prisma } from '@/lib/db';
 import { RMABLogger } from '@/lib/utils/logger';
 import { generateApiToken } from '@/lib/utils/api-token';
-import crypto from 'crypto';
 
 const logger = RMABLogger.create('API.Admin.Users.LoginToken');
 
@@ -37,8 +36,7 @@ export async function POST(
           );
         }
 
-        const { fullToken } = generateApiToken();
-        const tokenHash = crypto.createHash('sha256').update(fullToken).digest('hex');
+        const { fullToken, tokenHash } = generateApiToken();
 
         await prisma.user.update({
           where: { id },
