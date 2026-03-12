@@ -253,7 +253,8 @@ oidc.admin_claim_value       = 'readmeabook-admin'
 
 - Login token stored as SHA-256 hash in `User.loginTokenHash`
 - Admin generates/revokes via user permissions modal
-- User login with token `/auth/token/login?token=rmab_...`
+- User navigates to `/auth/token/login?token=rmab_...` → page POSTs token to API in request body
+- API: `POST /api/auth/token/login` with `{ token }` in JSON body
 - Invalid token redirects to `/login`
 
 ## Security

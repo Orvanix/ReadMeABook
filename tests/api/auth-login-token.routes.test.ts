@@ -19,7 +19,7 @@ vi.mock('@/lib/utils/jwt', () => ({
   generateRefreshToken: generateRefreshTokenMock,
 }));
 
-describe('GET /api/auth/token/login', () => {
+describe('POST /api/auth/token/login', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     generateAccessTokenMock.mockReturnValue('access-token');
@@ -37,9 +37,9 @@ describe('GET /api/auth/token/login', () => {
     });
     prismaMock.user.update.mockResolvedValueOnce({});
 
-    const { GET } = await import('@/app/api/auth/token/login/route');
-    const request = { nextUrl: { searchParams: new URLSearchParams('token=rmab_valid_token') } };
-    const response = await GET(request as any);
+    const { POST } = await import('@/app/api/auth/token/login/route');
+    const request = { json: vi.fn().mockResolvedValue({ token: 'rmab_valid_token' }) };
+    const response = await POST(request as any);
     const payload = await response.json();
 
     expect(response.status).toBe(200);
@@ -50,9 +50,9 @@ describe('GET /api/auth/token/login', () => {
   });
 
   it('returns 400 when token parameter is missing', async () => {
-    const { GET } = await import('@/app/api/auth/token/login/route');
-    const request = { nextUrl: { searchParams: new URLSearchParams() } };
-    const response = await GET(request as any);
+    const { POST } = await import('@/app/api/auth/token/login/route');
+    const request = { json: vi.fn().mockResolvedValue({}) };
+    const response = await POST(request as any);
     const payload = await response.json();
 
     expect(response.status).toBe(400);
@@ -62,9 +62,9 @@ describe('GET /api/auth/token/login', () => {
   it('returns 401 when token is invalid or user not found', async () => {
     prismaMock.user.findFirst.mockResolvedValueOnce(null);
 
-    const { GET } = await import('@/app/api/auth/token/login/route');
-    const request = { nextUrl: { searchParams: new URLSearchParams('token=rmab_invalid') } };
-    const response = await GET(request as any);
+    const { POST } = await import('@/app/api/auth/token/login/route');
+    const request = { json: vi.fn().mockResolvedValue({ token: 'rmab_invalid' }) };
+    const response = await POST(request as any);
     const payload = await response.json();
 
     expect(response.status).toBe(401);

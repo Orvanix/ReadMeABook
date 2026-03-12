@@ -22,7 +22,11 @@ function TokenLoginContent() {
       return;
     }
 
-    fetch(`/api/auth/token/login?token=${encodeURIComponent(token)}`)
+    fetch('/api/auth/token/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.error) {
@@ -35,7 +39,7 @@ function TokenLoginContent() {
         localStorage.setItem('user', JSON.stringify(data.user));
 
         setAuthData(data.user, data.accessToken);
-          window.location.href = '/';
+        window.location.href = '/';
       })
       .catch(() => {
         router.replace('/login');

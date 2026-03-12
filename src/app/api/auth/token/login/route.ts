@@ -11,9 +11,9 @@ import crypto from 'crypto';
 
 const logger = RMABLogger.create('API.Auth.TokenLogin');
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const token = request.nextUrl.searchParams.get('token');
+    const { token } = await request.json();
 
     if (!token) {
       return NextResponse.json({ error: 'Missing token parameter' }, { status: 400 });
