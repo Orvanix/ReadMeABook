@@ -9,6 +9,7 @@ import { createPrismaMock } from '../helpers/prisma';
 const prismaMock = createPrismaMock();
 const generateAccessTokenMock = vi.hoisted(() => vi.fn());
 const generateRefreshTokenMock = vi.hoisted(() => vi.fn());
+const checkTokenLoginRateLimitMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/db', () => ({
   prisma: prismaMock,
@@ -19,11 +20,23 @@ vi.mock('@/lib/utils/jwt', () => ({
   generateRefreshToken: generateRefreshTokenMock,
 }));
 
+vi.mock('@/lib/utils/authRateLimit', () => ({
+  checkTokenLoginRateLimit: checkTokenLoginRateLimitMock,
+}));
+
+function makeRequest(body: Record<string, unknown>, ip = '127.0.0.1') {
+  return {
+    headers: { get: vi.fn().mockReturnValue(ip) },
+    json: vi.fn().mockResolvedValue(body),
+  };
+}
+
 describe('POST /api/auth/token/login', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     generateAccessTokenMock.mockReturnValue('access-token');
     generateRefreshTokenMock.mockReturnValue('refresh-token');
+    checkTokenLoginRateLimitMock.mockReturnValue({ allowed: true, retryAfterSeconds: 900 });
   });
 
   it('authenticates user with a valid token', async () => {
@@ -38,8 +51,7 @@ describe('POST /api/auth/token/login', () => {
     prismaMock.user.update.mockResolvedValueOnce({});
 
     const { POST } = await import('@/app/api/auth/token/login/route');
-    const request = { json: vi.fn().mockResolvedValue({ token: 'rmab_valid_token' }) };
-    const response = await POST(request as any);
+    const response = await POST(makeRequest({ token: 'rmab_valid_token' }) as any);
     const payload = await response.json();
 
     expect(response.status).toBe(200);
@@ -51,8 +63,7 @@ describe('POST /api/auth/token/login', () => {
 
   it('returns 400 when token parameter is missing', async () => {
     const { POST } = await import('@/app/api/auth/token/login/route');
-    const request = { json: vi.fn().mockResolvedValue({}) };
-    const response = await POST(request as any);
+    const response = await POST(makeRequest({}) as any);
     const payload = await response.json();
 
     expect(response.status).toBe(400);
@@ -63,11 +74,22 @@ describe('POST /api/auth/token/login', () => {
     prismaMock.user.findFirst.mockResolvedValueOnce(null);
 
     const { POST } = await import('@/app/api/auth/token/login/route');
-    const request = { json: vi.fn().mockResolvedValue({ token: 'rmab_invalid' }) };
-    const response = await POST(request as any);
+    const response = await POST(makeRequest({ token: 'rmab_invalid' }) as any);
     const payload = await response.json();
 
     expect(response.status).toBe(401);
     expect(payload.error).toMatch(/Invalid token/);
+  });
+
+  it('returns 429 when rate limit is exceeded', async () => {
+    checkTokenLoginRateLimitMock.mockReturnValue({ allowed: false, retryAfterSeconds: 600 });
+
+    const { POST } = await import('@/app/api/auth/token/login/route');
+    const response = await POST(makeRequest({ token: 'rmab_any' }) as any);
+    const payload = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(payload.error).toMatch(/Too many login attempts/);
+    expect(response.headers.get('Retry-After')).toBe('600');
   });
 });
