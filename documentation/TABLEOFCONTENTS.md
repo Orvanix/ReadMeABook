@@ -99,6 +99,7 @@
 
 ## Admin Features
 - **Dashboard (metrics, downloads, requests)** → [admin-dashboard.md](admin-dashboard.md)
+- **Bulk import (scan folders, match Audible, batch import)** → [features/bulk-import.md](features/bulk-import.md)
 - **Jobs management UI** → [backend/services/scheduler.md](backend/services/scheduler.md)
 - **Request deletion (soft delete, seeding awareness)** → [admin-features/request-deletion.md](admin-features/request-deletion.md)
 - **Request approval system, auto-approve settings** → [admin-features/request-approval.md](admin-features/request-approval.md)
@@ -167,3 +168,6 @@
 **"How do Hardcover shelves work?"** → [backend/services/hardcover-sync.md](backend/services/hardcover-sync.md)
 **"How do I add a new shelf provider?"** → [backend/services/goodreads-sync.md](backend/services/goodreads-sync.md#adding-a-new-provider)
 **"How does the shelf sync core work?"** → [backend/services/goodreads-sync.md](backend/services/goodreads-sync.md#shared-sync-core)
+**"How does bulk import work?"** → [features/bulk-import.md](features/bulk-import.md)
+**"How do I import multiple audiobooks at once?"** → [features/bulk-import.md](features/bulk-import.md)
+**"How does the bulk import scanner detect audiobooks?"** → [features/bulk-import.md](features/bulk-import.md)
